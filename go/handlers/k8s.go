@@ -197,3 +197,35 @@ func GetNodes(store *sessions.CookieStore) http.HandlerFunc {
         json.NewEncoder(w).Encode(nodeList)
     }
 }
+
+func GetNamespaces(store *sessions.CookieStore) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        clientset, err := getK8sClient(r, store)
+        if err != nil {
+            http.Error(w, "Failed to create Kubernetes client: "+err.Error(), http.StatusInternalServerError)
+            return
+        }
+        
+        // Get all namespaces
+        namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+        
+        // Create a simplified response structure
+        type NamespaceInfo struct {
+            Name string `json:"name"`
+        }
+        
+        var namespaceList []NamespaceInfo
+        for _, ns := range namespaces.Items {
+            namespaceList = append(namespaceList, NamespaceInfo{
+                Name: ns.Name,
+            })
+        }
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(namespaceList)
+    }
+}

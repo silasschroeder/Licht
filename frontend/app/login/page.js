@@ -7,7 +7,7 @@ import styles from "./login.module.css";
 export default function LoginPage() {
   const router = useRouter();
   const [authMethod, setAuthMethod] = useState("certificate");
-  const [serverUrl, setServerUrl] = useState("https://141.72.12.181:6443");
+  const [serverUrl, setServerUrl] = useState("https://141.72.13.88:6443");
   const [certificateAuth, setCertificateAuth] = useState({
     clientCert: "",
     clientKey: "",

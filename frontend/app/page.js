@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import AuthCheck from "../components/AuthCheck";
 import styles from "./page.module.css";
 
@@ -27,9 +28,39 @@ export default function Dashboard() {
   // Fetch data function that can be reused
   const fetchData = async () => {
     try {
+      // Fetch namespaces data
+      const namespacesResponse = await fetch(
+        "http://localhost:8080/api/namespaces",
+        {
+          credentials: "include",
+        }
+      );
+
+      if (!namespacesResponse.ok) {
+        throw new Error(`HTTP error ${namespacesResponse.status}`);
+      }
+
+      const namespacesData = await namespacesResponse.json();
+
+      // Sort namespaces (default first, then alphabetically)
+      const sortedNamespaces = namespacesData
+        .map((ns) => ns.name)
+        .sort((a, b) => {
+          if (a === "default") return -1;
+          if (b === "default") return 1;
+          return a.localeCompare(b);
+        });
+
+      setNamespaces(sortedNamespaces);
+
+      // Select the first namespace if none is selected yet
+      if (!selectedNamespace && sortedNamespaces.length > 0) {
+        setSelectedNamespace(sortedNamespaces[0]);
+      }
+
       // Fetch pods data
       const podsResponse = await fetch("http://localhost:8080/api/pods", {
-        credentials: "include", // Important for cookies
+        credentials: "include",
       });
 
       if (!podsResponse.ok) {
@@ -41,7 +72,7 @@ export default function Dashboard() {
 
       // Fetch nodes data
       const nodesResponse = await fetch("http://localhost:8080/api/nodes", {
-        credentials: "include", // Important for cookies
+        credentials: "include",
       });
 
       if (!nodesResponse.ok) {
@@ -50,23 +81,6 @@ export default function Dashboard() {
 
       const nodesData = await nodesResponse.json();
       setNodes(nodesData);
-
-      // Extract unique namespaces and sort them
-      const uniqueNamespaces = [
-        ...new Set(podsData.map((pod) => pod.namespace)),
-      ];
-      const sortedNamespaces = uniqueNamespaces.sort((a, b) => {
-        if (a === "default") return -1;
-        if (b === "default") return 1;
-        return a.localeCompare(b);
-      });
-
-      setNamespaces(sortedNamespaces);
-
-      // Select the first namespace if none is selected yet
-      if (!selectedNamespace && sortedNamespaces.length > 0) {
-        setSelectedNamespace(sortedNamespaces[0]);
-      }
 
       // Update last updated timestamp
       setLastUpdated(new Date());
@@ -111,6 +125,93 @@ export default function Dashboard() {
     return lastUpdated.toLocaleTimeString();
   };
 
+  // Add this function to determine grid density class
+  const getPodGridClass = (podCount) => {
+    if (podCount > 35) return styles.miniPodPreviewVeryDense;
+    if (podCount > 20) return styles.miniPodPreviewDense;
+    if (podCount > 12) return styles.miniPodPreviewMedium;
+    return "";
+  };
+
+  // Simplified pod display limit function
+  const getPodDisplayLimit = (podCount) => {
+    return Math.min(12, podCount); // Never show more than 12 pods
+  };
+
+  // Add this new component for the enhanced pod with tooltip
+  const EnhancedPodSquare = ({ pod, color }) => {
+    const [showTooltip, setShowTooltip] = useState(false);
+    const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+    const [capturedPod, setCapturedPod] = useState(null);
+    const podRef = useRef(null);
+
+    // Handle mouse enter - capture pod data and position
+    const handleMouseEnter = () => {
+      if (podRef.current) {
+        const rect = podRef.current.getBoundingClientRect();
+        setTooltipPosition({
+          top: rect.top,
+          left: rect.left + rect.width / 2,
+        });
+        // Capture the pod data at this moment
+        setCapturedPod({ ...pod });
+        setShowTooltip(true);
+      }
+    };
+
+    return (
+      <div
+        ref={podRef}
+        className={styles.miniPod}
+        style={{ backgroundColor: color }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setShowTooltip(false)}
+      >
+        {showTooltip &&
+          capturedPod &&
+          createPortal(
+            <div
+              className={styles.podTooltip}
+              style={{
+                top: `${tooltipPosition.top - 10}px`,
+                left: `${tooltipPosition.left}px`,
+                transform: "translateX(-50%) translateY(-100%)",
+              }}
+            >
+              <div className={styles.podTooltipLine}>
+                <strong>Name:</strong> {capturedPod.name}
+              </div>
+              <div className={styles.podTooltipLine}>
+                <strong>Status:</strong> {capturedPod.status}
+              </div>
+              <div className={styles.podTooltipLine}>
+                <strong>Ready:</strong> {capturedPod.ready}
+              </div>
+              {capturedPod.ip && (
+                <div className={styles.podTooltipLine}>
+                  <strong>IP:</strong> {capturedPod.ip}
+                </div>
+              )}
+              {capturedPod.node && (
+                <div className={styles.podTooltipLine}>
+                  <strong>Node:</strong> {capturedPod.node}
+                </div>
+              )}
+              {capturedPod.restarts > 0 && (
+                <div className={styles.podTooltipLine}>
+                  <strong>Restarts:</strong> {capturedPod.restarts}
+                </div>
+              )}
+              <div className={styles.podTooltipLine}>
+                <strong>Age:</strong> {capturedPod.age}
+              </div>
+            </div>,
+            document.body
+          )}
+      </div>
+    );
+  };
+
   return (
     <AuthCheck>
       <div className={styles.page}>
@@ -151,6 +252,11 @@ export default function Dashboard() {
               <div className={styles.namespaceGrid}>
                 {namespaces.map((namespace) => {
                   const namespacePods = getPodsForNamespace(namespace);
+                  const isEmpty = namespacePods.length === 0;
+                  const gridDensityClass = getPodGridClass(
+                    namespacePods.length
+                  );
+
                   return (
                     <div
                       key={namespace}
@@ -161,22 +267,35 @@ export default function Dashboard() {
                       }`}
                       onClick={() => setSelectedNamespace(namespace)}
                     >
-                      <div className={styles.miniPodPreview}>
-                        {namespacePods.slice(0, 16).map((pod, idx) => (
-                          <div
-                            key={idx}
-                            className={styles.miniPod}
-                            style={{
-                              backgroundColor:
-                                statusColors[pod.status] ||
-                                statusColors.Unknown,
-                            }}
-                            title={`${pod.name}: ${pod.status}`}
-                          />
-                        ))}
-                        {namespacePods.length > 16 && (
+                      <div
+                        className={`${styles.miniPodPreview} ${
+                          isEmpty ? styles.emptyNamespace : ""
+                        } ${gridDensityClass}`}
+                      >
+                        {!isEmpty ? (
+                          // Show pods if namespace has them - max 12
+                          namespacePods
+                            .slice(0, getPodDisplayLimit(namespacePods.length))
+                            .map((pod, idx) => (
+                              <EnhancedPodSquare
+                                key={idx}
+                                pod={pod}
+                                color={
+                                  statusColors[pod.status] ||
+                                  statusColors.Unknown
+                                }
+                              />
+                            ))
+                        ) : (
+                          // Show empty state for namespaces with no pods
+                          <div className={styles.emptyNamespaceIndicator}>
+                            No Pods
+                          </div>
+                        )}
+
+                        {!isEmpty && namespacePods.length > 12 && (
                           <div className={styles.morePods}>
-                            +{namespacePods.length - 16}
+                            +{namespacePods.length - 12}
                           </div>
                         )}
                       </div>

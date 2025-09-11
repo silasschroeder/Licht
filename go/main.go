@@ -35,6 +35,7 @@ func main() {
     
     apiRouter.HandleFunc("/pods", handlers.GetPods(store)).Methods("GET", "OPTIONS")
     apiRouter.HandleFunc("/nodes", handlers.GetNodes(store)).Methods("GET", "OPTIONS")
+    apiRouter.HandleFunc("/namespaces", handlers.GetNamespaces(store)).Methods("GET", "OPTIONS")
     
     // CORS middleware
     r.Use(func(next http.Handler) http.Handler {
