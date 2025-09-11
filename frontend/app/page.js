@@ -25,66 +25,44 @@ export default function Dashboard() {
     NotReady: "#f44336",
   };
 
-  // Fetch data function that can be reused
+  // Simplified fetchData function with no sorting logic
   const fetchData = async () => {
     try {
-      // Fetch namespaces data
-      const namespacesResponse = await fetch(
-        "http://localhost:8080/api/namespaces",
-        {
-          credentials: "include",
-        }
-      );
+      // Fetch all data
+      const [podsResponse, namespacesResponse, nodesResponse] =
+        await Promise.all([
+          fetch("http://localhost:8080/api/pods", { credentials: "include" }),
+          fetch("http://localhost:8080/api/namespaces", {
+            credentials: "include",
+          }),
+          fetch("http://localhost:8080/api/nodes", { credentials: "include" }),
+        ]);
 
-      if (!namespacesResponse.ok) {
-        throw new Error(`HTTP error ${namespacesResponse.status}`);
+      // Check for errors
+      if (!podsResponse.ok || !namespacesResponse.ok || !nodesResponse.ok) {
+        throw new Error("Failed to fetch data");
       }
 
+      // Parse all data
+      const podsData = await podsResponse.json();
       const namespacesData = await namespacesResponse.json();
+      const nodesData = await nodesResponse.json();
 
-      // Sort namespaces (default first, then alphabetically)
-      const sortedNamespaces = namespacesData
-        .map((ns) => ns.name)
-        .sort((a, b) => {
-          if (a === "default") return -1;
-          if (b === "default") return 1;
-          return a.localeCompare(b);
-        });
+      // Store data in state without any sorting
+      setPods(podsData);
+      setNodes(nodesData);
 
-      setNamespaces(sortedNamespaces);
+      // Just use the namespaces as they come from the API
+      const namespaceNames = namespacesData.map((ns) => ns.name);
+      setNamespaces(namespaceNames);
 
       // Select the first namespace if none is selected yet
-      if (!selectedNamespace && sortedNamespaces.length > 0) {
-        setSelectedNamespace(sortedNamespaces[0]);
+      if (!selectedNamespace && namespaceNames.length > 0) {
+        setSelectedNamespace(namespaceNames[0]);
       }
-
-      // Fetch pods data
-      const podsResponse = await fetch("http://localhost:8080/api/pods", {
-        credentials: "include",
-      });
-
-      if (!podsResponse.ok) {
-        throw new Error(`HTTP error ${podsResponse.status}`);
-      }
-
-      const podsData = await podsResponse.json();
-      setPods(podsData);
-
-      // Fetch nodes data
-      const nodesResponse = await fetch("http://localhost:8080/api/nodes", {
-        credentials: "include",
-      });
-
-      if (!nodesResponse.ok) {
-        throw new Error(`HTTP error ${nodesResponse.status}`);
-      }
-
-      const nodesData = await nodesResponse.json();
-      setNodes(nodesData);
 
       // Update last updated timestamp
       setLastUpdated(new Date());
-
       setLoading(false);
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -115,8 +93,9 @@ export default function Dashboard() {
     : [];
 
   // Get pods for a specific namespace
-  const getPodsForNamespace = (namespace) => {
-    return pods.filter((pod) => pod.namespace === namespace);
+  const getPodsForNamespace = (namespace, allPods) => {
+    const podsToFilter = allPods || pods;
+    return podsToFilter.filter((pod) => pod.namespace === namespace);
   };
 
   // Format the last updated time
@@ -141,20 +120,50 @@ export default function Dashboard() {
   // Add this new component for the enhanced pod with tooltip
   const EnhancedPodSquare = ({ pod, color }) => {
     const [showTooltip, setShowTooltip] = useState(false);
-    const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+    const [tooltipStyle, setTooltipStyle] = useState({});
     const [capturedPod, setCapturedPod] = useState(null);
     const podRef = useRef(null);
 
-    // Handle mouse enter - capture pod data and position
+    // Handle mouse enter with improved positioning
     const handleMouseEnter = () => {
       if (podRef.current) {
         const rect = podRef.current.getBoundingClientRect();
-        setTooltipPosition({
-          top: rect.top,
-          left: rect.left + rect.width / 2,
-        });
-        // Capture the pod data at this moment
+        const tooltipWidth = 250; // Estimated tooltip width
+
+        // Capture pod data
         setCapturedPod({ ...pod });
+
+        // Calculate horizontal position
+        let left, arrowLeft;
+        const screenWidth = window.innerWidth;
+        const podCenter = rect.left + rect.width / 2;
+
+        if (podCenter - tooltipWidth / 2 < 10) {
+          // Too close to left edge - align tooltip left edge with screen edge + padding
+          left = 10;
+          // Arrow points to pod center relative to tooltip left edge
+          arrowLeft = podCenter - left;
+        } else if (podCenter + tooltipWidth / 2 > screenWidth - 10) {
+          // Too close to right edge - align tooltip right edge with screen edge - padding
+          left = screenWidth - tooltipWidth - 10;
+          // Arrow points to pod center relative to tooltip left edge
+          arrowLeft = podCenter - left;
+        } else {
+          // Enough space on both sides - center tooltip on pod
+          left = podCenter - tooltipWidth / 2;
+          // Arrow at center of tooltip
+          arrowLeft = tooltipWidth / 2;
+        }
+
+        // Set complete tooltip style
+        setTooltipStyle({
+          top: rect.top - 10 + "px",
+          left: left + "px",
+          width: tooltipWidth + "px",
+          transform: "translateY(-100%)",
+          "--arrow-left": arrowLeft + "px",
+        });
+
         setShowTooltip(true);
       }
     };
@@ -170,14 +179,7 @@ export default function Dashboard() {
         {showTooltip &&
           capturedPod &&
           createPortal(
-            <div
-              className={styles.podTooltip}
-              style={{
-                top: `${tooltipPosition.top - 10}px`,
-                left: `${tooltipPosition.left}px`,
-                transform: "translateX(-50%) translateY(-100%)",
-              }}
-            >
+            <div className={styles.podTooltip} style={tooltipStyle}>
               <div className={styles.podTooltipLine}>
                 <strong>Name:</strong> {capturedPod.name}
               </div>
@@ -205,11 +207,22 @@ export default function Dashboard() {
               <div className={styles.podTooltipLine}>
                 <strong>Age:</strong> {capturedPod.age}
               </div>
+              <div className={styles.podTooltipArrow}></div>
             </div>,
             document.body
           )}
       </div>
     );
+  };
+
+  // Update the width calculation function for fixed-size pods
+  const calculateNamespaceWidth = (podCount) => {
+    // At least 4 columns regardless of pod count
+    const columnsNeeded = Math.max(4, Math.ceil(podCount / 3));
+
+    // Each pod is 40px wide with 5px gap = 45px per column
+    // Add 30px padding for container sides
+    return Math.max(200, columnsNeeded * 45 + 30);
   };
 
   return (
@@ -253,7 +266,16 @@ export default function Dashboard() {
                 {namespaces.map((namespace) => {
                   const namespacePods = getPodsForNamespace(namespace);
                   const isEmpty = namespacePods.length === 0;
-                  const gridDensityClass = getPodGridClass(
+                  const hasManyPods = namespacePods.length > 12;
+
+                  // Calculate columns needed - at least 4, or enough for all pods in 3 rows
+                  const columnsToUse = Math.max(
+                    4,
+                    Math.ceil(namespacePods.length / 3)
+                  );
+
+                  // Dynamic width calculation
+                  const squareWidth = calculateNamespaceWidth(
                     namespacePods.length
                   );
 
@@ -264,38 +286,33 @@ export default function Dashboard() {
                         namespace === selectedNamespace
                           ? styles.selectedSquare
                           : ""
-                      }`}
+                      } ${hasManyPods ? styles.expandedNamespace : ""}`}
                       onClick={() => setSelectedNamespace(namespace)}
+                      style={{ width: `${squareWidth}px` }}
                     >
                       <div
                         className={`${styles.miniPodPreview} ${
                           isEmpty ? styles.emptyNamespace : ""
-                        } ${gridDensityClass}`}
+                        }`}
+                        style={{
+                          gridTemplateColumns: `repeat(${columnsToUse}, 40px)`,
+                        }}
                       >
                         {!isEmpty ? (
-                          // Show pods if namespace has them - max 12
-                          namespacePods
-                            .slice(0, getPodDisplayLimit(namespacePods.length))
-                            .map((pod, idx) => (
-                              <EnhancedPodSquare
-                                key={idx}
-                                pod={pod}
-                                color={
-                                  statusColors[pod.status] ||
-                                  statusColors.Unknown
-                                }
-                              />
-                            ))
+                          // Show ALL pods in the namespace
+                          namespacePods.map((pod, idx) => (
+                            <EnhancedPodSquare
+                              key={idx}
+                              pod={pod}
+                              color={
+                                statusColors[pod.status] || statusColors.Unknown
+                              }
+                            />
+                          ))
                         ) : (
                           // Show empty state for namespaces with no pods
                           <div className={styles.emptyNamespaceIndicator}>
                             No Pods
-                          </div>
-                        )}
-
-                        {!isEmpty && namespacePods.length > 12 && (
-                          <div className={styles.morePods}>
-                            +{namespacePods.length - 12}
                           </div>
                         )}
                       </div>
