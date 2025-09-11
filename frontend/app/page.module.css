@@ -1,0 +1,244 @@
+/* Core layout */
+.page {
+  padding: 20px;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+/* Namespaces grid */
+.namespaceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 30px;
+  width: 100%;
+  max-width: 1000px;
+  margin-bottom: 40px;
+}
+
+.namespaceSquare {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  border: 3px solid transparent;
+  box-sizing: border-box;
+}
+
+.namespaceSquare:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.selectedSquare {
+  border: 3px solid #0070f3;
+  background-color: rgba(0, 112, 243, 0.05);
+}
+
+.miniPodPreview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  width: 100%;
+  height: 60%;
+  margin-bottom: 10px;
+}
+
+.miniPod {
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  transition: transform 0.1s ease;
+}
+
+.miniPod:hover {
+  transform: scale(1.2);
+  z-index: 2;
+}
+
+.morePods {
+  grid-column: span 4;
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+}
+
+.namespaceName {
+  font-weight: 600;
+  margin-top: auto;
+  text-align: center;
+}
+
+.podCount {
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+}
+
+/* Workspace container */
+.workspaceContainer {
+  position: relative;
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Pod detail view */
+.detailView {
+  width: 100%;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  animation: zoomIn 0.3s ease-out;
+  z-index: 1;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  position: relative;
+}
+
+.table th,
+.table td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.table th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+}
+
+.nodeLabel {
+  display: inline-block;
+  font-family: monospace;
+  padding: 2px 5px;
+  background-color: #f0f0f0;
+  border-radius: 3px;
+  font-size: 0.9rem;
+}
+
+/* Status indicators */
+.statusIndicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+/* Animation */
+@keyframes zoomIn {
+  0% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.table {
+  min-width: 1000px; /* Ensure table has a minimum width for all columns */
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.updateInfo {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.refreshButton {
+  background-color: #f0f0f0;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.refreshButton:hover {
+  background-color: #e0e0e0;
+}
+
+.refreshButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.refreshIndicator {
+  font-size: 0.9rem;
+  color: #0070f3;
+  margin-bottom: 10px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.logoutButton {
+  padding: 8px 16px;
+  background-color: #f5f5f5;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.logoutButton:hover {
+  background-color: #e0e0e0;
+}
+
+/* Utilities */
+.error {
+  color: red;
+}
