@@ -224,13 +224,27 @@ export default function Dashboard() {
   };
 
   // Simple ResourceTable component
-  const ResourceTable = ({ type, namespace }) => {
+  const ResourceTable = ({ type, namespace, highlightPodKey }) => {
     const data = resourceData[type] || [];
     const filtered = namespace
       ? data.filter((r) => r.namespace === namespace)
       : data;
     const columns = getTableConfig(type);
     if (!columns.length) return null;
+
+    // Preserve namespace + createdAt for highlight + age
+    const rows = filtered.map((orig) => {
+      const rowData = {};
+      columns.forEach(([key]) => {
+        rowData[key] = orig[key];
+      });
+      rowData.name = orig.name;
+      rowData.namespace = orig.namespace;
+      rowData.createdAt =
+        orig.createdAt || orig.creationTimestamp || orig.startTime || null;
+      return rowData;
+    });
+
     return (
       <div className={styles.tableRegion}>
         <div className={styles.tableWrapper}>
@@ -244,45 +258,29 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((row, i) => (
-                  <tr key={row.name + i}>
-                    {columns.map(([k]) => {
-                      let value = row[k];
-                      if (Array.isArray(value)) value = value.join(",");
-                      if (value == null) value = "";
-
-                      if (k === "status") {
-                        const status = String(value);
-                        return (
-                          <td key={k} className={styles.statusCell}>
-                            <span
-                              className={styles.statusDot}
-                              data-status={status}
-                              title={status}
-                            />
-                            <span>{status}</span>
-                          </td>
-                        );
-                      }
-                      if (k === "age") {
-                        const ts = row.createdAt;
-                        value = formatAge(ts);
-                      }
-
-                      return <td key={k}>{String(value)}</td>;
-                    })}
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={columns.length}
-                      style={{ textAlign: "center", opacity: 0.7 }}
+                {rows.map((row) => {
+                  const rowKey =
+                    type === "pods"
+                      ? `${row.namespace || ""}/${row.name}`
+                      : row.name;
+                  const highlight =
+                    type === "pods" && rowKey === highlightPodKey;
+                  return (
+                    <tr
+                      key={rowKey}
+                      data-pod-row={type === "pods" ? rowKey : undefined}
+                      className={highlight ? styles.highlightRow : undefined}
                     >
-                      No {type} found
-                    </td>
-                  </tr>
-                )}
+                      {columns.map(([k]) => {
+                        let value = row[k];
+                        if (k === "age") value = formatAge(row.createdAt);
+                        if (Array.isArray(value)) value = value.join(",");
+                        if (value == null) value = "";
+                        return <td key={k}>{String(value)}</td>;
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -664,6 +662,20 @@ export default function Dashboard() {
     }).finally(() => router.push("/login"));
   }
 
+  // Highlight pod key for UI feedback
+  const [highlightPodKey, setHighlightPodKey] = useState(null);
+  const highlightTimerRef = useRef(null);
+
+  function triggerPodHighlight(ns, name) {
+    const key = `${ns}/${name}`;
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    setHighlightPodKey(key);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightPodKey(null);
+      highlightTimerRef.current = null;
+    }, 2000);
+  }
+
   return (
     <div className={styles.page}>
       <AuthCheck>
@@ -727,20 +739,82 @@ export default function Dashboard() {
                         className={styles.miniPodPreview}
                         style={{
                           gridTemplateColumns: `repeat(${visibleColumns}, ${POD_SIZE}px)`,
-                          // Force a baseline 3-row height for 0–12 pods
+                          gridAutoRows: `${POD_SIZE}px`,
+                          gap: `${POD_GAP}px`,
                           height:
                             podCount <= 12 ? `${BASE_GRID_HEIGHT}px` : "auto",
                         }}
                       >
                         {podCount > 0 ? (
                           namespacePods.map((pod, idx) => (
-                            <EnhancedPodSquare
+                            <div
                               key={pod.name + idx}
-                              pod={pod}
-                              color={
-                                statusColors[pod.status] || statusColors.Unknown
-                              }
-                            />
+                              className={styles.miniPodClickWrap}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const el = e.currentTarget;
+                                // Copy pod name
+                                const text = pod.name;
+                                if (navigator.clipboard?.writeText) {
+                                  navigator.clipboard
+                                    .writeText(text)
+                                    .catch(() => {});
+                                } else {
+                                  const ta = document.createElement("textarea");
+                                  ta.value = text;
+                                  ta.style.position = "fixed";
+                                  ta.style.opacity = "0";
+                                  document.body.appendChild(ta);
+                                  ta.select();
+                                  try {
+                                    document.execCommand("copy");
+                                  } catch {}
+                                  document.body.removeChild(ta);
+                                }
+                                // Switch UI context
+                                setResourceType("pods");
+                                setSelectedNamespace(pod.namespace);
+                                triggerPodHighlight(pod.namespace, pod.name);
+
+                                // Flash animation
+                                if (el) {
+                                  el.classList.add(styles.copiedFlash);
+                                  setTimeout(() => {
+                                    if (el)
+                                      el.classList.remove(styles.copiedFlash);
+                                  }, 350);
+                                }
+
+                                // Scroll target row after table re-renders
+                                setTimeout(() => {
+                                  const rowEl = document.querySelector(
+                                    `[data-pod-row="${pod.namespace}/${pod.name}"]`
+                                  );
+                                  if (rowEl) {
+                                    rowEl.scrollIntoView({
+                                      behavior: "smooth",
+                                      block: "center",
+                                    });
+                                  }
+                                }, 140);
+                              }}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  e.currentTarget.click();
+                                }
+                              }}
+                            >
+                              <EnhancedPodSquare
+                                pod={pod}
+                                color={
+                                  statusColors[pod.status] ||
+                                  statusColors.Unknown
+                                }
+                              />
+                            </div>
                           ))
                         ) : (
                           <div className={styles.emptyNamespaceIndicator}>
@@ -765,6 +839,7 @@ export default function Dashboard() {
               <ResourceTable
                 type={resourceType}
                 namespace={selectedNamespace}
+                highlightPodKey={highlightPodKey}
               />
             </div>
           </div>
