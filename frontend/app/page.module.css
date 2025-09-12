@@ -12,13 +12,31 @@
   width: 100%;
 }
 
+/* Center shell + content */
+.centerShell {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.centerContent {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0 12px;
+  gap: 20px;
+}
+
 /* BUTTON + TAB THEME */
 .resourceTabs {
+  width: auto;
+  align-self: center;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 20px 0 10px;
-  width: 100%;
+  margin: 8px 0 4px;
 }
 .resourceTab {
   padding: 6px 14px;
@@ -246,15 +264,48 @@
   z-index: 1;
 }
 
-.table {
+/* Add (or replace) these table layout styles */
+
+/* Outer region centers the table block */
+.tableRegion {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  background: #fff;
-  border: 1px solid #e2e6ea;
-  border-radius: 8px;
-  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
 }
+
+/* Scroll container: shrinks to content, but never exceeds viewport */
+.tableWrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  /* Remove full-width stretch */
+  display: inline-block;
+  width: auto;
+}
+
+/* Inner block ensures natural content width */
+.tableInner {
+  display: inline-block;
+  width: max-content;
+  min-width: 0;
+}
+
+/* Table keeps natural width */
+.table {
+  width: max-content;
+  table-layout: auto;
+  min-width: 0;
+}
+
+/* Keep columns tight; remove if you want wrapping */
+.table th,
+.table td {
+  white-space: nowrap;
+}
+
 .table th {
   background: #f3f6f9;
   font-weight: 600;
@@ -273,12 +324,6 @@
   background: #f6fafc;
 }
 
-.tableWrapper {
-  width: 100%;
-  overflow-x: auto;
-  margin-top: 1rem;
-}
-
 .updateInfo {
   background: #f3f7fa;
   padding: 8px 14px;
@@ -289,6 +334,8 @@
   align-items: center;
   gap: 12px;
   color: #41505a;
+  align-self: center;
+  width: auto;
 }
 
 /* Status dot in tables */

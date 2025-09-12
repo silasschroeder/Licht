@@ -38,6 +38,18 @@ export default function Dashboard() {
     cronJobs: [],
   });
 
+  // ADD THIS (must be inside the component, before JSX uses tabs)
+  const tabs = [
+    ["pods", "Pods"],
+    ["deployments", "Deployments"],
+    ["services", "Services"],
+    ["replicaSets", "ReplicaSets"],
+    ["statefulSets", "StatefulSets"],
+    ["daemonSets", "DaemonSets"],
+    ["jobs", "Jobs"],
+    ["cronJobs", "CronJobs"],
+  ];
+
   // Simplified fetchData function
   const fetchData = async () => {
     try {
@@ -193,53 +205,57 @@ export default function Dashboard() {
     const columns = getTableConfig(type);
     if (!columns.length) return null;
     return (
-      <div className={styles.tableWrapper}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              {columns.map(([k, label]) => (
-                <th key={k}>{label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((row, i) => (
-              <tr key={row.name + i}>
-                {columns.map(([k]) => {
-                  let value = row[k];
-                  if (Array.isArray(value)) value = value.join(",");
-                  if (value == null) value = "";
+      <div className={styles.tableRegion}>
+        <div className={styles.tableWrapper}>
+          <div className={styles.tableInner}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  {columns.map(([k, label]) => (
+                    <th key={k}>{label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((row, i) => (
+                  <tr key={row.name + i}>
+                    {columns.map(([k]) => {
+                      let value = row[k];
+                      if (Array.isArray(value)) value = value.join(",");
+                      if (value == null) value = "";
 
-                  if (k === "status") {
-                    const status = String(value);
-                    return (
-                      <td key={k} className={styles.statusCell}>
-                        <span
-                          className={styles.statusDot}
-                          data-status={status}
-                          title={status}
-                        />
-                        <span>{status}</span>
-                      </td>
-                    );
-                  }
+                      if (k === "status") {
+                        const status = String(value);
+                        return (
+                          <td key={k} className={styles.statusCell}>
+                            <span
+                              className={styles.statusDot}
+                              data-status={status}
+                              title={status}
+                            />
+                            <span>{status}</span>
+                          </td>
+                        );
+                      }
 
-                  return <td key={k}>{String(value)}</td>;
-                })}
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  style={{ textAlign: "center", opacity: 0.7 }}
-                >
-                  No {type} found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                      return <td key={k}>{String(value)}</td>;
+                    })}
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={columns.length}
+                      style={{ textAlign: "center", opacity: 0.7 }}
+                    >
+                      No {type} found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     );
   };
@@ -406,24 +422,12 @@ export default function Dashboard() {
     <div className={styles.page}>
       <AuthCheck>
         <div className={styles.main}>
-          <h1 className={styles.title}>Kubernetes Dashboard</h1>
-
-          {/* Loading and error states */}
-          {loading && <div className={styles.loading}>Loading...</div>}
-          {error && <div className={styles.error}>Error: {error}</div>}
-
-          {!loading && !error && (
-            <>
-              <div className={styles.updateInfo}>
-                Last updated:{" "}
-                {lastUpdated ? lastUpdated.toLocaleTimeString() : "Never"}
-                <button onClick={fetchData} className={styles.refreshButton}>
-                  Refresh
-                </button>
-              </div>
-
-              {/* Namespace selection */}
+          <div className={styles.centerShell}>
+            <div className={styles.centerContent}>
+              {/* Namespace heading */}
               <h2 className={styles.sectionTitle}>Namespaces</h2>
+
+              {/* Namespace grid */}
               <div className={styles.namespaceGrid}>
                 {[
                   ...new Map(
@@ -495,23 +499,42 @@ export default function Dashboard() {
                 })}
               </div>
 
-              {/* Selected namespace details */}
-              {selectedNamespace && (
-                <div className={styles.detailView}>
-                  <h2>{selectedNamespace} Namespace</h2>
+              {/* Update / controls */}
+              <div className={styles.updateInfo}>
+                Last updated:{" "}
+                {lastUpdated ? lastUpdated.toLocaleTimeString() : "Never"}
+                <button
+                  onClick={fetchData}
+                  className={styles.refreshButton}
+                  disabled={loading}
+                >
+                  Refresh
+                </button>
+                {/* (optional auto refresh toggle here) */}
+              </div>
 
-                  {/* Add resource tabs */}
-                  <ResourceTabs />
+              {/* MOVED: Tabs now below refresh, above table */}
+              <div className={styles.resourceTabs}>
+                {tabs.map(([val, label]) => (
+                  <button
+                    key={val}
+                    className={`${styles.resourceTab} ${
+                      resourceType === val ? styles.activeTab : ""
+                    }`}
+                    onClick={() => setResourceType(val)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-                  {/* Resource table for selected type */}
-                  <ResourceTable
-                    type={resourceType}
-                    namespace={selectedNamespace}
-                  />
-                </div>
-              )}
-            </>
-          )}
+              {/* Table */}
+              <ResourceTable
+                type={resourceType}
+                namespace={selectedNamespace}
+              />
+            </div>
+          </div>
         </div>
       </AuthCheck>
     </div>
