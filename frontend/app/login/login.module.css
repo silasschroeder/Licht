@@ -1,21 +1,18 @@
 .loginContainer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   min-height: 100vh;
-  padding: 20px;
-  background-color: #f5f5f5;
-  font-family: "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans",
-    "Helvetica Neue", sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
 }
 
 .loginCard {
   width: 100%;
-  max-width: 600px;
-  padding: 30px;
-  background-color: white;
+  max-width: 560px;
+  background: #fff;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 24px 28px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 .loginCard h1 {
@@ -26,7 +23,10 @@
 }
 
 .formGroup {
-  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
 }
 
 .formGroup label {
@@ -35,42 +35,50 @@
   font-weight: 500;
 }
 
-.formGroup input[type="text"],
+.formGroup input,
 .formGroup textarea {
   width: 100%;
-  padding: 10px;
+  padding: 10px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
-  resize: none; /* Verhindert die Größenänderung */
-  font-family: "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans",
-    "Helvetica Neue", sans-serif;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 16px; /* enforce normal size */
+  line-height: 1.4;
 }
 
+/* Normalize radio alignment */
 .radioGroup {
   display: flex;
-  gap: 20px;
+  gap: 18px;
+  align-items: center;
 }
 
 .radioGroup label {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin: 0; /* remove any inconsistent margin */
   font-weight: normal;
   cursor: pointer;
 }
 
+/* Remove default radio input offset that can push text */
+.radioGroup input[type="radio"] {
+  margin: 0;
+  transform: translateY(0);
+  position: relative;
+  top: 0;
+}
+
 .loginButton {
+  margin-top: 8px;
   width: 100%;
-  padding: 12px;
-  background-color: #0070f3;
-  color: white;
+  padding: 10px 14px;
+  background: #2196f3;
+  color: #fff;
   border: none;
-  border-radius: 4px;
-  font-size: 16px;
-  font-weight: 500;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s;
 }
 
 .loginButton:hover {
@@ -78,15 +86,15 @@
 }
 
 .loginButton:disabled {
-  background-color: #cccccc;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
 .errorMessage {
-  padding: 10px;
-  margin-bottom: 20px;
-  background-color: #ffebee;
   color: #d32f2f;
-  border-radius: 4px;
-  border-left: 4px solid #d32f2f;
+  background: #fdecea;
+  border: 1px solid #f5c2c7;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE, apiPost } from "../../lib/api";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
@@ -12,9 +13,7 @@ export default function LoginPage() {
     clientCert: "",
     clientKey: "",
   });
-  const [tokenAuth, setTokenAuth] = useState({
-    token: "",
-  });
+  const [tokenAuth, setTokenAuth] = useState({ token: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -24,33 +23,32 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      // Prepare the credentials based on auth method
       const credentials = {
-        serverUrl,
+        serverUrl: serverUrl.trim(),
         authMethod,
         ...(authMethod === "certificate" ? certificateAuth : tokenAuth),
       };
 
-      // Send to backend
-      const response = await fetch("http://localhost:8080/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-        credentials: "include", // Important for cookies
-      });
+      const response = await apiPost("/api/auth/login", credentials);
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Login failed");
+        let message = "Login failed";
+        try {
+          const data = await response.json();
+          if (data?.message) message = data.message;
+        } catch {
+          try {
+            const text = await response.text();
+            if (text) message = text;
+          } catch {}
+        }
+        throw new Error(message);
       }
 
-      // Redirect to dashboard on success
       router.push("/");
     } catch (err) {
       console.error("Login error:", err);
-      setError(err.message);
+      setError(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
