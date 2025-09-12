@@ -19,7 +19,6 @@ const statusColors = {
 
 export default function Dashboard() {
   // Basic state variables
-  const [pods, setPods] = useState([]);
   const [nodes, setNodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -81,11 +80,11 @@ export default function Dashboard() {
       const dataMap = {};
       results.forEach(([k, v]) => (dataMap[k] = v));
 
-      setPods(dataMap.pods || []);
       setNodes(dataMap.nodes || []);
       setNamespaces(dataMap.namespaces || []);
 
-      setResourceData({
+      setResourceData((prev) => ({
+        ...prev,
         pods: dataMap.pods || [],
         services: dataMap.services || [],
         deployments: dataMap.deployments || [],
@@ -94,7 +93,7 @@ export default function Dashboard() {
         daemonSets: dataMap.daemonSets || [],
         jobs: dataMap.jobs || [],
         cronJobs: dataMap.cronJobs || [],
-      });
+      }));
 
       console.log("Successfully loaded", (dataMap.pods || []).length, "pods");
       console.log("Successfully loaded", (dataMap.nodes || []).length, "nodes");
@@ -128,7 +127,9 @@ export default function Dashboard() {
 
   // Helper function to get pods for a specific namespace
   const getPodsForNamespace = (namespace) => {
-    return pods.filter((pod) => pod.namespace === namespace);
+    return (resourceData.pods || []).filter(
+      (pod) => pod.namespace === namespace
+    );
   };
 
   // Update ResourceTable and table configs
@@ -417,6 +418,69 @@ export default function Dashboard() {
 
     testApi();
   }, []);
+
+  useEffect(() => {
+    const es = new EventSource(`${API_BASE}/api/watch/pods`, {
+      withCredentials: true,
+    });
+
+    es.addEventListener("pod", (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (!msg || !msg.type) return;
+        if (msg.type === "ERROR") {
+          console.warn("Pod stream error:", msg.err);
+          return;
+        }
+        if (!msg.pod) return;
+
+        const podObj = msg.pod;
+        const containers = podObj.spec?.containers || [];
+        const containerStatuses = podObj.status?.containerStatuses || [];
+        const ready = `${containerStatuses.filter((c) => c.ready).length}/${
+          containers.length
+        }`;
+        const restarts = containerStatuses.reduce(
+          (a, c) => a + (c.restartCount || 0),
+          0
+        );
+
+        const normalized = {
+          name: podObj.metadata?.name,
+          namespace: podObj.metadata?.namespace,
+          status: podObj.status?.phase || "Unknown",
+          ready,
+          restart: restarts,
+          age: "", // can compute periodically if desired
+          ip: podObj.status?.podIP || "",
+          node: podObj.spec?.nodeName || "",
+        };
+        const key = normalized.namespace + "/" + normalized.name;
+
+        // Helper to update pods:
+        function updatePods(mutator) {
+          setResourceData((prev) => {
+            const newPods = mutator(prev.pods || []);
+            return { ...prev, pods: newPods };
+          });
+        }
+
+        // SSE listener change:
+        updatePods((prev) => {
+          const map = new Map(prev.map((p) => [p.namespace + "/" + p.name, p]));
+          if (msg.type === "DELETED") map.delete(key);
+          else map.set(key, normalized);
+          return Array.from(map.values());
+        });
+      } catch {}
+    });
+
+    es.onerror = () => {
+      console.warn("Pod EventSource error (will not retry here)");
+    };
+
+    return () => es.close();
+  }, [API_BASE]);
 
   return (
     <div className={styles.page}>

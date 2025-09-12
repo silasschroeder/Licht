@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -205,7 +206,8 @@ func GetServices(store *sessions.CookieStore) http.HandlerFunc {
 		}
 		list, err := client.CoreV1().Services("").List(r.Context(), metav1.ListOptions{})
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("[SERVICES] list error: %v", err)
+			http.Error(w, "services list failed: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		out := []SvcInfo{}

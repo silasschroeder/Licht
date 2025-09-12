@@ -1,71 +1,110 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/silasschroeder/licht/go/handlers"
 )
 
-// Global session store
-var store = sessions.NewCookieStore([]byte("super-secret-key-change-this-in-production"))
+var store = sessions.NewCookieStore([]byte("super-secret-key"))
+
+// Middleware: recover panics -> 500 JSON
+func recovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func(start time.Time) {
+			if rec := recover(); rec != nil {
+				log.Printf("[PANIC] %s %s %v", r.Method, r.URL.Path, rec)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"message":"internal server error"}`))
+			}
+		}(time.Now())
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Basic request logging
+func logging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s %s", r.Method, r.URL.Path, r.RemoteAddr)
+	})
+}
+
+// CORS middleware (allow localhost:3000)
+func cors(next http.Handler) http.Handler {
+	allowed := []string{"http://localhost:3000"}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		for _, o := range allowed {
+			if origin == o {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				break
+			}
+		}
+		w.Header().Set("Vary", "Origin")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 func main() {
-	// Initialize session store settings
-	store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   3600 * 8, // 8 hours
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, // explicit Lax for localhost (same-site across ports)
-	}
+	store.Options.Path = "/"
+	store.Options.HttpOnly = true
+	store.Options.MaxAge = 3600 * 8
+	store.Options.SameSite = http.SameSiteLaxMode
 
-	// Initialize router
 	r := mux.NewRouter()
 
-	// APPLY CORS MIDDLEWARE FIRST
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
+	// Middlewares
+	r.Use(recovery)
+	r.Use(cors)
+	r.Use(logging)
 
-			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	})
-
-	// Auth routes
+	// Auth routes (public)
 	r.HandleFunc("/api/auth/login", handlers.Login(store)).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/logout", handlers.Logout(store)).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/check", handlers.CheckAuth(store)).Methods("GET", "OPTIONS")
 
-	// K8s API routes - all protected by auth middleware
-	apiRouter := r.PathPrefix("/api").Subrouter()
-	apiRouter.Use(handlers.AuthMiddleware(store))
+	// Protected resource routes
+	auth := handlers.AuthMiddleware(store)
 
-	// EXISTING ROUTES
-	apiRouter.HandleFunc("/pods", handlers.GetPods(store)).Methods("GET", "OPTIONS")
-	apiRouter.HandleFunc("/nodes", handlers.GetNodes(store)).Methods("GET", "OPTIONS")
-	apiRouter.HandleFunc("/namespaces", handlers.GetNamespaces(store)).Methods("GET", "OPTIONS")
+	r.Handle("/api/pods", auth(handlers.GetPods(store))).Methods("GET")
+	r.Handle("/api/nodes", auth(handlers.GetNodes(store))).Methods("GET")
+	r.Handle("/api/namespaces", auth(handlers.GetNamespaces(store))).Methods("GET")
+	r.Handle("/api/services", auth(handlers.GetServices(store))).Methods("GET")
+	r.Handle("/api/deployments", auth(handlers.GetDeployments(store))).Methods("GET")
+	r.Handle("/api/replicasets", auth(handlers.GetReplicaSets(store))).Methods("GET")
+	r.Handle("/api/statefulsets", auth(handlers.GetStatefulSets(store))).Methods("GET")
+	r.Handle("/api/daemonsets", auth(handlers.GetDaemonSets(store))).Methods("GET")
+	r.Handle("/api/jobs", auth(handlers.GetJobs(store))).Methods("GET")
+	r.Handle("/api/cronjobs", auth(handlers.GetCronJobs(store))).Methods("GET")
 
-	// ADD MISSING ROUTES FOR ADDITIONAL RESOURCES
-	apiRouter.HandleFunc("/services", handlers.GetServices(store)).Methods("GET", "OPTIONS")
-	apiRouter.HandleFunc("/deployments", handlers.GetDeployments(store)).Methods("GET", "OPTIONS")
-	apiRouter.HandleFunc("/replicasets", handlers.GetReplicaSets(store)).Methods("GET", "OPTIONS")
-	apiRouter.HandleFunc("/statefulsets", handlers.GetStatefulSets(store)).Methods("GET", "OPTIONS")
-	apiRouter.HandleFunc("/daemonsets", handlers.GetDaemonSets(store)).Methods("GET", "OPTIONS")
-	apiRouter.HandleFunc("/jobs", handlers.GetJobs(store)).Methods("GET", "OPTIONS")
-	apiRouter.HandleFunc("/cronjobs", handlers.GetCronJobs(store)).Methods("GET", "OPTIONS")
+	// SSE watch route
+	r.Handle("/api/watch/pods", auth(handlers.WatchPods(store))).Methods("GET")
 
-	// Start server
-	fmt.Println("Starting server on :8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	// 404 fallback (ensures CORS still returned)
+	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+	})
+
+	port := os.Getenv("API_PORT")
+	if strings.TrimSpace(port) == "" {
+		port = "8080"
+	}
+	log.Printf("API listening on :%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }
