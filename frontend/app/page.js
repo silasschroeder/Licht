@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import AuthCheck from "../components/AuthCheck";
 import { apiGet } from "../lib/api";
+import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
@@ -36,6 +37,9 @@ export default function Dashboard() {
     jobs: [],
     cronJobs: [],
   });
+  const [clusterAddress, setClusterAddress] = useState("");
+
+  const router = useRouter();
 
   // Age timer (moved OUT of SSE effect)
   const [now, setNow] = useState(Date.now());
@@ -629,12 +633,53 @@ export default function Dashboard() {
     return () => es.close();
   }, []);
 
+  // fetch cluster address once
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/check`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const raw = data.server_url || "";
+          if (raw) {
+            try {
+              const u = new URL(raw);
+              setClusterAddress(u.host);
+            } catch {
+              setClusterAddress(raw);
+            }
+          }
+        }
+      } catch {}
+    })();
+  }, []);
+
+  // logout handler
+  function handleLogout() {
+    fetch(`${API_BASE}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    }).finally(() => router.push("/login"));
+  }
+
   return (
     <div className={styles.page}>
       <AuthCheck>
         <div className={styles.main}>
           <div className={styles.centerShell}>
             <div className={styles.centerContent}>
+              <h1 className={styles.pageTitle}>Licht</h1>
+              <div className={styles.clusterLine}>
+                <span className={styles.clusterHost}>
+                  {clusterAddress || "Cluster unbekannt"}
+                </span>
+                <button className={styles.logoutButton} onClick={handleLogout}>
+                  Logout
+                </button>
+              </div>
+
               {/* Namespace heading */}
               <h2 className={styles.sectionTitle}>Namespaces</h2>
 
@@ -711,7 +756,7 @@ export default function Dashboard() {
               </div>
 
               {/* Update / controls */}
-              <div className={styles.updateInfo}>Live stream active</div>
+              <h2 className={styles.sectionTitle}>Content</h2>
 
               {/* MOVED: Tabs now below refresh, above table */}
               <ResourceTabs />
