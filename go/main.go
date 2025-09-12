@@ -94,6 +94,8 @@ func main() {
 
 	// SSE watch route
 	r.Handle("/api/watch/pods", auth(handlers.WatchPods(store))).Methods("GET")
+	// NEW: multi-resource stream
+	r.Handle("/api/watch/stream", auth(handlers.WatchAll(store))).Methods("GET")
 
 	// 404 fallback (ensures CORS still returned)
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

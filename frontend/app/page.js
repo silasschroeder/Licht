@@ -37,17 +37,39 @@ export default function Dashboard() {
     cronJobs: [],
   });
 
-  // ADD THIS (must be inside the component, before JSX uses tabs)
-  const tabs = [
-    ["pods", "Pods"],
-    ["deployments", "Deployments"],
-    ["services", "Services"],
-    ["replicaSets", "ReplicaSets"],
-    ["statefulSets", "StatefulSets"],
-    ["daemonSets", "DaemonSets"],
-    ["jobs", "Jobs"],
-    ["cronJobs", "CronJobs"],
-  ];
+  // Age timer (moved OUT of SSE effect)
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  function formatAge(iso) {
+    if (!iso) return "";
+    const started = Date.parse(iso);
+    if (isNaN(started)) return "";
+    let diff = Math.floor((now - started) / 1000);
+    if (diff < 0) diff = 0;
+    if (diff < 90) return `${diff}s`;
+    const minutes = Math.floor(diff / 60);
+    if (minutes < 90) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 48) {
+      const remM = minutes % 60;
+      return remM ? `${hours}h${remM}m` : `${hours}h`;
+    }
+    const days = Math.floor(hours / 24);
+    if (days < 14) {
+      const remH = hours % 24;
+      return remH ? `${days}d${remH}h` : `${days}d`;
+    }
+    const weeks = Math.floor(days / 7);
+    if (weeks < 8) {
+      const remD = days % 7;
+      return remD ? `${weeks}w${remD}d` : `${weeks}w`;
+    }
+    return `${days}d`;
+  }
 
   // Simplified fetchData function
   const fetchData = async () => {
@@ -238,6 +260,10 @@ export default function Dashboard() {
                           </td>
                         );
                       }
+                      if (k === "age") {
+                        const ts = row.createdAt;
+                        value = formatAge(ts);
+                      }
 
                       return <td key={k}>{String(value)}</td>;
                     })}
@@ -381,7 +407,7 @@ export default function Dashboard() {
                   </div>
                 )}
               <div className={styles.podTooltipLine}>
-                <strong>Age:</strong> {capturedPod.age}
+                <strong>Age:</strong> {formatAge(capturedPod.createdAt)}
               </div>
               <div className={styles.podTooltipArrow}></div>
             </div>,
@@ -420,67 +446,188 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const es = new EventSource(`${API_BASE}/api/watch/pods`, {
+    // Open multi-resource SSE
+    const es = new EventSource(`${API_BASE}/api/watch/stream`, {
       withCredentials: true,
     });
 
-    es.addEventListener("pod", (e) => {
+    // Age formatter (shows seconds < 90s, then m, h, d)
+    function normalize(kind, obj) {
+      const createdAt = obj.metadata?.creationTimestamp;
+      switch (kind) {
+        case "Pod": {
+          const containers = obj.spec?.containers || [];
+          const statuses = obj.status?.containerStatuses || [];
+          const ready = `${statuses.filter((c) => c.ready).length}/${
+            containers.length
+          }`;
+          const restarts = statuses.reduce(
+            (a, c) => a + (c.restartCount || 0),
+            0
+          );
+          return {
+            name: obj.metadata?.name,
+            namespace: obj.metadata?.namespace,
+            status: obj.status?.phase || "Unknown",
+            ready,
+            restart: restarts,
+            ip: obj.status?.podIP || "",
+            node: obj.spec?.nodeName || "",
+            createdAt,
+          };
+        }
+        case "Service": {
+          const ports = (obj.spec?.ports || [])
+            .map((p) => {
+              const proto = (p.protocol || "").toLowerCase();
+              return p.nodePort
+                ? `${p.port}:${p.nodePort}/${proto}`
+                : `${p.port}/${proto}`;
+            })
+            .join(",");
+          return {
+            name: obj.metadata?.name,
+            namespace: obj.metadata?.namespace,
+            type: obj.spec?.type,
+            clusterIP: obj.spec?.clusterIP,
+            externalIPs: (obj.status?.loadBalancer?.ingress || [])
+              .map((i) => i.ip || i.hostname)
+              .filter(Boolean)
+              .concat(obj.spec?.externalIPs || []),
+            ports,
+            createdAt,
+          };
+        }
+        case "Deployment": {
+          const desired = obj.spec?.replicas ?? 0;
+          return {
+            name: obj.metadata?.name,
+            namespace: obj.metadata?.namespace,
+            ready: `${obj.status?.readyReplicas || 0}/${desired}`,
+            upToDate: obj.status?.updatedReplicas || 0,
+            available: obj.status?.availableReplicas || 0,
+            createdAt,
+          };
+        }
+        case "ReplicaSet": {
+          const desired = obj.spec?.replicas ?? 0;
+          return {
+            name: obj.metadata?.name,
+            namespace: obj.metadata?.namespace,
+            desired,
+            current: obj.status?.replicas || 0,
+            ready: obj.status?.readyReplicas || 0,
+            createdAt,
+          };
+        }
+        case "StatefulSet": {
+          const specRep = obj.spec?.replicas ?? 0;
+          return {
+            name: obj.metadata?.name,
+            namespace: obj.metadata?.namespace,
+            ready: `${obj.status?.readyReplicas || 0}/${specRep}`,
+            createdAt,
+          };
+        }
+        case "DaemonSet": {
+          return {
+            name: obj.metadata?.name,
+            namespace: obj.metadata?.namespace,
+            desired: obj.status?.desiredNumberScheduled || 0,
+            current: obj.status?.currentNumberScheduled || 0,
+            ready: obj.status?.numberReady || 0,
+            createdAt,
+          };
+        }
+        case "Job": {
+          const completions = obj.spec?.completions ?? 0;
+          return {
+            name: obj.metadata?.name,
+            namespace: obj.metadata?.namespace,
+            completions: `${obj.status?.succeeded || 0}/${completions}`,
+            duration: "-",
+            createdAt,
+          };
+        }
+        case "CronJob": {
+          return {
+            name: obj.metadata?.name,
+            namespace: obj.metadata?.namespace,
+            schedule: obj.spec?.schedule,
+            suspend: !!obj.spec?.suspend,
+            active: (obj.status?.active || []).length,
+            lastSchedule: obj.status?.lastScheduleTime ? "" : "<none>",
+            createdAt,
+          };
+        }
+        case "Node": {
+          let status = "Unknown";
+          (obj.status?.conditions || []).forEach((c) => {
+            if (c.type === "Ready")
+              status = c.status === "True" ? "Ready" : "NotReady";
+          });
+          return { name: obj.metadata?.name, status, createdAt };
+        }
+        case "Namespace": {
+          return { name: obj.metadata?.name, createdAt };
+        }
+      }
+      return null;
+    }
+
+    const kindMap = {
+      Pod: "pods",
+      Service: "services",
+      Deployment: "deployments",
+      ReplicaSet: "replicaSets",
+      StatefulSet: "statefulSets",
+      DaemonSet: "daemonSets",
+      Job: "jobs",
+      CronJob: "cronJobs",
+      Node: "nodes",
+      Namespace: "namespaces",
+    };
+
+    function upsert(kind, type, object) {
+      const keyName = kindMap[kind];
+      if (!keyName) return;
+      setResourceData((prev) => {
+        const list = prev[keyName] || [];
+        // Key strategy
+        const makeKey = (o) => {
+          if (kind === "Node" || kind === "Namespace") return o.name;
+          return (o.namespace ? o.namespace + "/" : "") + o.name;
+        };
+        const norm = object ? normalize(kind, object) : null;
+        if (!norm) return prev;
+        const map = new Map(list.map((o) => [makeKey(o), o]));
+        const k = makeKey(norm);
+        if (type === "DELETED") {
+          map.delete(k);
+        } else {
+          map.set(k, norm);
+        }
+        return { ...prev, [keyName]: Array.from(map.values()) };
+      });
+    }
+
+    es.addEventListener("multi", (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (!msg || !msg.type) return;
-        if (msg.type === "ERROR") {
-          console.warn("Pod stream error:", msg.err);
-          return;
+        if (!msg.kind || !msg.type) return;
+        if (msg.type === "ERROR" || msg.type === "STREAM_END") return;
+        if (["SYNC", "ADDED", "MODIFIED", "DELETED"].includes(msg.type)) {
+          upsert(msg.kind, msg.type, msg.object);
         }
-        if (!msg.pod) return;
-
-        const podObj = msg.pod;
-        const containers = podObj.spec?.containers || [];
-        const containerStatuses = podObj.status?.containerStatuses || [];
-        const ready = `${containerStatuses.filter((c) => c.ready).length}/${
-          containers.length
-        }`;
-        const restarts = containerStatuses.reduce(
-          (a, c) => a + (c.restartCount || 0),
-          0
-        );
-
-        const normalized = {
-          name: podObj.metadata?.name,
-          namespace: podObj.metadata?.namespace,
-          status: podObj.status?.phase || "Unknown",
-          ready,
-          restart: restarts,
-          age: "", // can compute periodically if desired
-          ip: podObj.status?.podIP || "",
-          node: podObj.spec?.nodeName || "",
-        };
-        const key = normalized.namespace + "/" + normalized.name;
-
-        // Helper to update pods:
-        function updatePods(mutator) {
-          setResourceData((prev) => {
-            const newPods = mutator(prev.pods || []);
-            return { ...prev, pods: newPods };
-          });
-        }
-
-        // SSE listener change:
-        updatePods((prev) => {
-          const map = new Map(prev.map((p) => [p.namespace + "/" + p.name, p]));
-          if (msg.type === "DELETED") map.delete(key);
-          else map.set(key, normalized);
-          return Array.from(map.values());
-        });
       } catch {}
     });
 
     es.onerror = () => {
-      console.warn("Pod EventSource error (will not retry here)");
+      console.warn("Multi-resource stream error");
     };
 
     return () => es.close();
-  }, [API_BASE]);
+  }, []);
 
   return (
     <div className={styles.page}>
@@ -564,33 +711,10 @@ export default function Dashboard() {
               </div>
 
               {/* Update / controls */}
-              <div className={styles.updateInfo}>
-                Last updated:{" "}
-                {lastUpdated ? lastUpdated.toLocaleTimeString() : "Never"}
-                <button
-                  onClick={fetchData}
-                  className={styles.refreshButton}
-                  disabled={loading}
-                >
-                  Refresh
-                </button>
-                {/* (optional auto refresh toggle here) */}
-              </div>
+              <div className={styles.updateInfo}>Live stream active</div>
 
               {/* MOVED: Tabs now below refresh, above table */}
-              <div className={styles.resourceTabs}>
-                {tabs.map(([val, label]) => (
-                  <button
-                    key={val}
-                    className={`${styles.resourceTab} ${
-                      resourceType === val ? styles.activeTab : ""
-                    }`}
-                    onClick={() => setResourceType(val)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <ResourceTabs />
 
               {/* Table */}
               <ResourceTable
