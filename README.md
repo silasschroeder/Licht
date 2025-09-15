@@ -1,154 +1,165 @@
 # Licht
 
-A minimal web UI for exploring and interacting with a Kubernetes cluster.
+A modern, web-based frontend for your Kubernetes cluster. Licht provides an intuitive dashboard to visualize and monitor your Kubernetes resources in real-time.
 
-## Overview
+> **Current Status**: Licht is currently in **read-only mode**, providing comprehensive visualization and monitoring of your Kubernetes cluster. The goal is to expand Licht to support full cluster interaction capabilities, including resource management, editing, and deployment operations.
 
-Licht consists of:
+## 🏗️ Architecture
 
-- Go backend (`/go`): REST + session handling (Gorilla Mux/Sessions) and Kubernetes API (client-go).
-- Next.js frontend (`/frontend`): App Router UI that calls the backend.
-- Goal: Lightweight, local-first dashboard for rapid cluster introspection.
+Licht consists of two main components:
 
-## Features (current / planned)
+- **Go Backend** (`/go`): RESTful API server that communicates with the Kubernetes API
+- **Next.js Frontend** (`/frontend`): Modern React-based web dashboard
 
-- Session-based auth scaffolding
-- Kubernetes resource listing & watch (using informers / manual watches)
-- Multi-watch abstraction (`handlers/watch_multi.go`)
-- Simple login flow placeholder (see `frontend/app/login/`)
-- Extensible handler structure (`/go/handlers`)
+```
+┌─────────────────┐    HTTP/SSE     ┌─────────────────┐    Kubernetes    ┌─────────────────┐
+│   Next.js       │ ◄─────────────► │   Go Backend    │ ◄──────────────► │   K8s Cluster   │
+│   Frontend      │                 │   (API Server)  │                  │                 │
+│   (Port 3000)   │                 │   (Port 8080)   │                  │                 │
+└─────────────────┘                 └─────────────────┘                  └─────────────────┘
+```
 
-## Tech Stack
+## ✨ Current Features (Read-Only)
 
-| Layer    | Tech                                                |
-| -------- | --------------------------------------------------- |
-| Backend  | Go 1.25, Gorilla Mux, client-go                     |
-| Frontend | Next.js (App Router), React                         |
-| Cluster  | Any kubeconfig-accessible cluster (k3s, kind, etc.) |
+- 🔐 **Secure Authentication**: Certificate and token-based Kubernetes authentication
+- 📊 **Resource Dashboard**: View pods, nodes, services, deployments, and more
+- 🔄 **Real-time Updates**: Server-Sent Events (SSE) for live cluster monitoring
+- 🎯 **Namespace Filtering**: Focus on specific namespaces
+- 🎨 **Visual Pod Status**: Color-coded pod states (Running, Pending, Failed, etc.)
+- 📱 **Responsive Design**: Works seamlessly on desktop and mobile devices
 
-## Prerequisites
+### Supported Kubernetes Resources
+
+- Pods
+- Nodes
+- Namespaces
+- Services
+- Deployments
+- ReplicaSets
+- StatefulSets
+- DaemonSets
+- Jobs
+- CronJobs
+
+## 🚀 Future Roadmap
+
+Licht aims to evolve from a read-only dashboard to a full-featured Kubernetes management platform:
+
+- ⚡ **Resource Management**: Create, update, and delete Kubernetes resources
+- 📝 **YAML Editor**: In-browser editing of resource configurations
+- 🚀 **Application Deployment**: Streamlined deployment workflows
+- 📈 **Advanced Monitoring**: Metrics integration and alerting
+- 🔧 **Cluster Operations**: Node management and cluster maintenance tools
+- 👥 **Multi-user Support**: Role-based access control
+
+## 🛠️ Tech Stack
+
+**Backend:**
 
 - Go 1.25+
-- Node.js 18+ (for Next.js)
-- A valid `KUBECONFIG` (or default in `~/.kube/config`)
-- Access rights to list/watch desired resources
+- Gorilla Mux (HTTP router)
+- Kubernetes client-go library
+- Server-Sent Events for real-time updates
 
-## Quick Start
+**Frontend:**
 
-### 1. Clone
+- Next.js 15.5+
+- React 19.1+
+- Turbopack for fast builds
+- CSS Modules for styling
 
-```sh
-git clone https://github.com/silasschroeder/licht.git
-cd licht
+## 📋 Prerequisites
+
+- Go 1.25 or later
+- Node.js 18+ and npm
+- Access to a Kubernetes cluster
+- Valid Kubernetes credentials (certificate or token)
+
+## 🏃‍♂️ Quick Start
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/silasschroeder/Licht.git
+cd Licht
 ```
 
-### 2. Backend
+### 2. Setup Backend
 
-```sh
+```bash
 cd go
 go mod tidy
-export KUBECONFIG=</path/to/your/kubeconfig>   # if not default
-go run ./...
+go run main.go
 ```
 
-Server defaults (adjust in `main.go` or config layer when extended):
+The API server will start on `http://localhost:8080`
 
-- Port: 8080
-- Cookie session store (in-memory secret placeholder)
+### 3. Setup Frontend
 
-### 3. Frontend
-
-```sh
-cd ../frontend
+```bash
+cd frontend
 npm install
 npm run dev
 ```
 
-Access UI at http://localhost:3000 (frontend) calling backend at (adjust CORS if needed).
+The web interface will be available at `http://localhost:3000`
 
-## Development Notes
+### 4. Configure Kubernetes Access
 
-Backend middleware (logging, recovery, CORS) lives in [`main.go`](go/main.go).  
-Handlers organized under [`/go/handlers`](go/handlers/):
+Ensure you have access to your Kubernetes cluster. For K3s users:
 
-- `auth.go`: session + auth scaffolding
-- `k8s.go`: Kubernetes interactions
-- `watch.go` / `watch_multi.go`: resource watch patterns
-- `helpers.go`: shared utilities
+```bash
+# View your kubeconfig
+cat /etc/rancher/k3s/k3s.yaml
 
-Add new resource handlers alongside existing ones; wire them in the router in `main.go`.
-
-## Kubernetes Access
-
-Typical kubeconfig discovery order (client-go):
-
-1. Explicit `KUBECONFIG`
-2. `~/.kube/config`
-3. In-cluster (future use case)
-
-Test connectivity:
-
-```sh
-kubectl get nodes
+# Or copy it to the standard location
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown $USER:$USER ~/.kube/config
 ```
 
-## Scripts / Common Commands
+For other Kubernetes distributions, follow the [official client-go setup documentation](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/).
 
-```sh
-# Backend
-go fmt ./...
-go vet ./...
-go test ./...    # (add tests)
+## 🔧 Development
 
-# Frontend
-npm run lint
-npm run build
+### Backend Development
+
+```bash
+cd go
+go mod tidy
+go run main.go
 ```
 
-## Security / Hardening To-Do
+### Frontend Development
 
-- Replace static cookie secret with env-based secret
-- Add CSRF protection
-- Enforce HTTPS / secure cookie flags
-- Implement real auth (OIDC / Kubernetes tokens)
-- RBAC-aware filtering of API results
-
-## Folder Structure (high-level)
-
-```
-go/
-  main.go
-  handlers/
-  config/
-frontend/
-  app/
-  components/
-  lib/
+```bash
+cd frontend
+npm run dev
 ```
 
-## Roadmap (short)
+The frontend uses Turbopack for fast development builds and hot reloading.
 
-- Pod / Deployment detail views
-- Log streaming
-- Exec into pod (backend proxy)
-- Namespace switcher
-- RBAC-aware UI pruning
-- Dark mode toggle
+## 📈 Recent Development
 
-## Contributing
+### Commit History
 
-PRs welcome. Keep changes small and focused. Add comments for Kubernetes interactions.
+- **`26d802e`** - Initial plan (copilot-swe-agent[bot], 2 minutes ago)
+- **`cdbdc81`** - mini pod square click logic (Silas, 30 minutes ago)
+  - Major initial implementation: 4,281 lines added across 24 files
+  - Complete backend API with authentication and resource handlers
+  - Full Next.js frontend with dashboard and login functionality
+  - Real-time updates via Server-Sent Events
+  - Pod visualization with interactive click logic
 
-## License
+## 🤝 Contributing
 
-(Choose a license: MIT / Apache-2.0 / etc.)
+Licht is under active development. Contributions are welcome as we work towards making it a comprehensive Kubernetes management platform.
 
-## Troubleshooting
+## 📄 License
 
-| Issue                | Fix                                               |
-| -------------------- | ------------------------------------------------- |
-| 401 / session lost   | Check cookie domain / browser blocking            |
-| Empty resource lists | Verify KUBECONFIG context & RBAC                  |
-| CORS errors          | Confirm allowed origin in backend CORS middleware |
+This project is open source. Please check the repository for license details.
 
-Minimal, focused, extensible. Build
+## 🔗 References
+
+- [Go Documentation](https://go.dev/doc/code) - For Go setup and development
+- [Kubernetes Client Access](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/) - For client-go setup
+- [Next.js Documentation](https://nextjs.org/docs) - For frontend development
