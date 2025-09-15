@@ -13,7 +13,7 @@ Licht consists of two main components:
 
 ```
 ┌─────────────────┐    HTTP/SSE     ┌─────────────────┐    Kubernetes    ┌─────────────────┐
-│   Next.js       │ ◄──────────────► │   Go Backend    │ ◄───────────────► │   K8s Cluster   │
+│   Next.js       │ ◄─────────────► │   Go Backend    │ ◄──────────────► │   K8s Cluster   │
 │   Frontend      │                 │   (API Server)  │                  │                 │
 │   (Port 3000)   │                 │   (Port 8080)   │                  │                 │
 └─────────────────┘                 └─────────────────┘                  └─────────────────┘
