@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE, apiPost } from "../../lib/api";
+import { useState } from "react";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
   const router = useRouter();
+
   const [authMethod, setAuthMethod] = useState("certificate");
-  const [serverUrl, setServerUrl] = useState("https://141.72.13.88:6443");
+  const [serverUrl, setServerUrl] = useState("https://kubernetes:6443");
   const [certificateAuth, setCertificateAuth] = useState({
     clientCert: "",
     clientKey: "",
@@ -17,42 +17,50 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  async function handleSubmit(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setError(null);
-
+    setLoading(true);
     try {
-      const credentials = {
-        serverUrl: serverUrl.trim(),
-        authMethod,
-        ...(authMethod === "certificate" ? certificateAuth : tokenAuth),
-      };
+      const payload =
+        authMethod === "certificate"
+          ? {
+              serverUrl,
+              authMethod,
+              clientCert: certificateAuth.clientCert.trim(),
+              clientKey: certificateAuth.clientKey.trim(),
+            }
+          : {
+              serverUrl,
+              authMethod,
+              token: tokenAuth.token.trim(),
+            };
 
-      const response = await apiPost("/api/auth/login", credentials);
-
-      if (!response.ok) {
-        let message = "Login failed";
-        try {
-          const data = await response.json();
-          if (data?.message) message = data.message;
-        } catch {
-          try {
-            const text = await response.text();
-            if (text) message = text;
-          } catch {}
-        }
-        throw new Error(message);
+      const res = await fetch(`/api/auth/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(`Login failed (${res.status}) ${t}`);
       }
+
+      try {
+        localStorage.setItem("licht-server-url", serverUrl);
+      } catch {}
 
       router.push("/");
     } catch (err) {
-      console.error("Login error:", err);
       setError(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <div className={styles.loginContainer}>
@@ -61,7 +69,7 @@ export default function LoginPage() {
 
         {error && <div className={styles.errorMessage}>{error}</div>}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className={styles.formGroup}>
             <label htmlFor="serverUrl">API Server URL</label>
             <input
@@ -71,6 +79,7 @@ export default function LoginPage() {
               onChange={(e) => setServerUrl(e.target.value)}
               placeholder="https://kubernetes:6443"
               required
+              autoComplete="off"
             />
           </div>
 
@@ -120,7 +129,6 @@ export default function LoginPage() {
                   required
                 />
               </div>
-
               <div className={styles.formGroup}>
                 <label htmlFor="clientKey">Client Key (Base64 encoded)</label>
                 <textarea
@@ -158,6 +166,7 @@ export default function LoginPage() {
             type="submit"
             className={styles.loginButton}
             disabled={loading}
+            onClick={handleSubmit} // ensure Safari calls handler even if onSubmit fails
           >
             {loading ? "Connecting..." : "Connect to Cluster"}
           </button>

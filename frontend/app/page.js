@@ -7,7 +7,7 @@ import { apiGet } from "../lib/api";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
+const API_BASE = ""; // same-origin via Next rewrite
 
 // Status colors for pod states
 const statusColors = {
@@ -40,6 +40,35 @@ export default function Dashboard() {
   const [clusterAddress, setClusterAddress] = useState("");
 
   const router = useRouter();
+
+  // ADD: auth gate
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/check`, {
+          credentials: "include",
+        });
+        if (cancelled) return;
+        if (res.ok) {
+          setAuthReady(true);
+        } else {
+          setAuthReady(false);
+          router.push("/login");
+        }
+      } catch {
+        if (!cancelled) {
+          setAuthReady(false);
+          router.push("/login");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   // Age timer (moved OUT of SSE effect)
   const [now, setNow] = useState(Date.now());
@@ -77,6 +106,7 @@ export default function Dashboard() {
 
   // Simplified fetchData function
   const fetchData = async () => {
+    if (!authReady) return; // guard: only load when authenticated
     try {
       setLoading(true);
       setError(null);
@@ -145,11 +175,11 @@ export default function Dashboard() {
     }
   };
 
-  // Fix the useEffect hook
+  // Load data only after authentication is confirmed
   useEffect(() => {
-    // Initial load only
+    if (!authReady) return;
     fetchData();
-  }, []); // <-- ensure no interval / no dependencies
+  }, [authReady]);
 
   // Helper function to get pods for a specific namespace
   const getPodsForNamespace = (namespace) => {
@@ -419,35 +449,8 @@ export default function Dashboard() {
     );
   };
 
-  // Add at the beginning of your Dashboard component
-
   useEffect(() => {
-    // Simple API test function
-    const testApi = async () => {
-      try {
-        console.log("Testing API connection...");
-        const response = await fetch("http://localhost:8080/api/auth/check", {
-          credentials: "include",
-          mode: "cors",
-        });
-
-        console.log("Auth check response:", response.status);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log("Auth data:", data);
-        } else {
-          console.error("Auth check failed with status:", response.status);
-        }
-      } catch (err) {
-        console.error("API test error:", err);
-      }
-    };
-
-    testApi();
-  }, []);
-
-  useEffect(() => {
+    if (!authReady) return;
     // Open multi-resource SSE
     const es = new EventSource(`${API_BASE}/api/watch/stream`, {
       withCredentials: true,
@@ -629,10 +632,11 @@ export default function Dashboard() {
     };
 
     return () => es.close();
-  }, []);
+  }, [authReady]);
 
-  // fetch cluster address once
+  // fetch cluster address only when authed
   useEffect(() => {
+    if (!authReady) return;
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/api/auth/check`, {
@@ -652,7 +656,23 @@ export default function Dashboard() {
         }
       } catch {}
     })();
-  }, []);
+  }, [authReady]);
+
+  // Fallback: read what we saved at login if /api/auth/check doesn't include server_url
+  useEffect(() => {
+    if (clusterAddress) return;
+    try {
+      const saved = localStorage.getItem("licht-server-url");
+      if (saved) {
+        try {
+          const u = new URL(saved);
+          setClusterAddress(u.host);
+        } catch {
+          setClusterAddress(saved);
+        }
+      }
+    } catch {}
+  }, [clusterAddress]);
 
   // logout handler
   function handleLogout() {
@@ -674,6 +694,19 @@ export default function Dashboard() {
       setHighlightPodKey(null);
       highlightTimerRef.current = null;
     }, 2000);
+  }
+
+  // Optional: render guard to avoid flashing unauth state
+  if (!authReady) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.main}>
+          <div className={styles.centerShell}>
+            <div className={styles.centerContent}>Authorizing…</div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
