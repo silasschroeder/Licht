@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styles from "@/app/page.module.css";
+import Prism from "prismjs";
+import "prismjs/components/prism-yaml";
+
+// Optional: if you want to support copy of highlighted selection nicely
+// import "prismjs/plugins/toolbar/prism-toolbar.css";
+// import "prismjs/plugins/copy-to-clipboard/prism-copy-to-clipboard";
 
 export default function YamlViewer({ kind, namespace, name, open, onClose }) {
   const [text, setText] = useState("");
@@ -37,6 +43,15 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, kind, namespace, name, source]);
+
+  // Compute highlighted HTML once per text change
+  const highlighted = useMemo(() => {
+    try {
+      return Prism.highlight(text, Prism.languages.yaml, "yaml");
+    } catch {
+      return text;
+    }
+  }, [text]);
 
   if (!open) return null;
 
@@ -84,7 +99,17 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
             </button>
           </div>
         </div>
-        <pre className={styles.modalPre}>{loading ? "Loading…" : text}</pre>
+
+        {loading ? (
+          <pre className={styles.modalPre}>Loading…</pre>
+        ) : (
+          <pre className={styles.modalPre}>
+            <code
+              className="language-yaml"
+              dangerouslySetInnerHTML={{ __html: highlighted }}
+            />
+          </pre>
+        )}
       </div>
     </div>
   );
