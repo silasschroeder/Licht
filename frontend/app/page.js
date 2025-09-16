@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 import YamlViewer from "../components/YamlViewer";
 
+// Ensure API_BASE stays same-origin (empty string) to leverage Next.js rewrites
 const API_BASE = ""; // same-origin via Next rewrite
 
 // Status colors for pod states
@@ -74,39 +75,31 @@ export default function Dashboard() {
     };
   }, [router]);
 
-  // Age timer (moved OUT of SSE effect)
+  // Age timer (ensures re-render periodically)
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60000);
+    const id = setInterval(() => setNow(Date.now()), 30_000); // every 30s
     return () => clearInterval(id);
   }, []);
 
+  // Format "age" from ISO time using current "now"
   function formatAge(iso) {
-    if (!iso) return "";
-    const started = Date.parse(iso);
-    if (isNaN(started)) return "";
-    let diff = Math.floor((now - started) / 1000);
-    if (diff < 0) diff = 0;
-    if (diff < 90) return `${diff}s`;
-    const minutes = Math.floor(diff / 60);
-    if (minutes < 90) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 48) {
-      const remM = minutes % 60;
-      return remM ? `${hours}h${remM}m` : `${hours}h`;
-    }
-    const days = Math.floor(hours / 24);
-    if (days < 14) {
-      const remH = hours % 24;
-      return remH ? `${days}d${remH}h` : `${days}d`;
-    }
-    const weeks = Math.floor(days / 7);
-    if (weeks < 8) {
-      const remD = days % 7;
-      return remD ? `${weeks}w${remD}d` : `${weeks}w`;
-    }
-    return `${days}d`;
+    if (!iso) return "-";
+    const ts = new Date(iso).getTime();
+    if (!Number.isFinite(ts)) return "-";
+    let s = Math.max(0, Math.floor((now - ts) / 1000));
+    const d = Math.floor(s / 86400);
+    s -= d * 86400;
+    const h = Math.floor(s / 3600);
+    s -= h * 3600;
+    const m = Math.floor(s / 60);
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
   }
+
+  // Track if SSE already delivered pod data
+  const ssePodsActiveRef = useRef(false);
 
   // Simplified fetchData function
   const fetchData = async () => {
@@ -143,16 +136,32 @@ export default function Dashboard() {
       setNodes(dataMap.nodes || []);
       setNamespaces(dataMap.namespaces || []);
 
+      // helper: add createdAt if missing (for raw K8s objects)
+      const withCreatedAt = (arr) =>
+        Array.isArray(arr)
+          ? arr.map((o) => ({
+              ...o,
+              createdAt:
+                o.createdAt ??
+                o?.metadata?.creationTimestamp ??
+                o?.status?.startTime ??
+                null,
+            }))
+          : [];
+
       setResourceData((prev) => ({
         ...prev,
-        pods: dataMap.pods || [],
-        services: dataMap.services || [],
-        deployments: dataMap.deployments || [],
-        replicaSets: dataMap.replicaSets || [],
-        statefulSets: dataMap.statefulSets || [],
-        daemonSets: dataMap.daemonSets || [],
-        jobs: dataMap.jobs || [],
-        cronJobs: dataMap.cronJobs || [],
+        // IMPORTANT: keep SSE-updated pods; only set from fetch if SSE not active yet
+        pods: ssePodsActiveRef.current
+          ? prev.pods
+          : withCreatedAt(dataMap.pods || []),
+        services: withCreatedAt(dataMap.services || []),
+        deployments: withCreatedAt(dataMap.deployments || []),
+        replicaSets: withCreatedAt(dataMap.replicaSets || []),
+        statefulSets: withCreatedAt(dataMap.statefulSets || []),
+        daemonSets: withCreatedAt(dataMap.daemonSets || []),
+        jobs: withCreatedAt(dataMap.jobs || []),
+        cronJobs: withCreatedAt(dataMap.cronJobs || []),
       }));
 
       console.log("Successfully loaded", (dataMap.pods || []).length, "pods");
@@ -271,12 +280,24 @@ export default function Dashboard() {
       columns.forEach(([key]) => {
         rowData[key] = orig[key];
       });
-      rowData.name = orig.name;
-      rowData.namespace = orig.namespace;
+      // Fallbacks for raw K8s objects
+      rowData.name = orig.name ?? orig.metadata?.name ?? orig.Name ?? "";
+      rowData.namespace =
+        orig.namespace ?? orig.metadata?.namespace ?? orig.Namespace ?? "";
       rowData.createdAt =
-        orig.createdAt || orig.creationTimestamp || orig.startTime || null;
+        orig.createdAt ??
+        orig.metadata?.creationTimestamp ??
+        orig.creationTimestamp ??
+        orig.status?.startTime ??
+        null;
       return rowData;
     });
+
+    // Render helper: compute Age from createdAt
+    const renderCell = (row, col) => {
+      if (col.key === "age") return formatAge(row.createdAt);
+      return row[col.key] ?? "";
+    };
 
     return (
       <div className={styles.tableRegion}>
@@ -288,7 +309,6 @@ export default function Dashboard() {
                   {columns.map(([k, label]) => (
                     <th key={k}>{label}</th>
                   ))}
-                  {/* ADD: Actions column */}
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -307,13 +327,10 @@ export default function Dashboard() {
                       className={highlight ? styles.highlightRow : undefined}
                     >
                       {columns.map(([k]) => {
-                        let value = row[k];
-                        if (k === "age") value = formatAge(row.createdAt);
-                        if (Array.isArray(value)) value = value.join(",");
-                        if (value == null) value = "";
+                        const value =
+                          k === "age" ? formatAge(row.createdAt) : row[k] ?? "";
                         return <td key={k}>{String(value)}</td>;
                       })}
-                      {/* ADD: YAML action */}
                       <td>
                         <button
                           className={styles.resourceTab}
@@ -472,189 +489,290 @@ export default function Dashboard() {
     );
   };
 
+  // array helpers used by SSE handler
+  const upsert = (arr, isSame, item) => {
+    const i = arr.findIndex(isSame);
+    if (i === -1) arr.push(item);
+    else arr[i] = item;
+    return arr;
+  };
+  const rm = (arr, isSame) => {
+    const i = arr.findIndex(isSame);
+    if (i !== -1) arr.splice(i, 1);
+    return arr;
+  };
+
+  // Live-Updates über Multi-Stream (Pods, Services, Deployments, …)
   useEffect(() => {
     if (!authReady) return;
-    // Open multi-resource SSE
-    const es = new EventSource(`${API_BASE}/api/watch/stream`, {
+
+    const sseBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
+    const es = new EventSource(`${sseBase}/api/watch/stream`, {
       withCredentials: true,
     });
 
-    // Age formatter (shows seconds < 90s, then m, h, d)
-    function normalize(kind, obj) {
-      const createdAt = obj.metadata?.creationTimestamp;
-      switch (kind) {
-        case "Pod": {
-          const containers = obj.spec?.containers || [];
-          const statuses = obj.status?.containerStatuses || [];
-          const ready = `${statuses.filter((c) => c.ready).length}/${
-            containers.length
-          }`;
-          const restarts = statuses.reduce(
-            (a, c) => a + (c.restartCount || 0),
+    const onOpen = () => {};
+    const onError = () => {};
+    const handle = (ev) => {
+      let msg;
+      try {
+        msg = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      const kind = msg.kind;
+      const t = msg.type;
+      const o = msg.object || {};
+      const createdAt =
+        o?.metadata?.creationTimestamp || o?.metadata?.creation_time || null;
+
+      if (kind === "Pod") {
+        // Mark that SSE is driving pods now
+        ssePodsActiveRef.current = true;
+        const total =
+          (o.spec?.containers?.length || 0) +
+          (o.spec?.initContainers?.length || 0);
+        const ready =
+          (o.status?.containerStatuses || []).reduce(
+            (n, cs) => n + (cs.ready ? 1 : 0),
+            0
+          ) +
+          (o.status?.initContainerStatuses || []).reduce(
+            (n, cs) => n + (cs.ready ? 1 : 0),
             0
           );
-          return {
-            name: obj.metadata?.name,
-            namespace: obj.metadata?.namespace,
-            status: obj.status?.phase || "Unknown",
-            ready,
-            restart: restarts,
-            ip: obj.status?.podIP || "",
-            node: obj.spec?.nodeName || "",
-            createdAt,
-          };
-        }
-        case "Service": {
-          const ports = (obj.spec?.ports || [])
-            .map((p) => {
-              const proto = (p.protocol || "").toLowerCase();
-              return p.nodePort
-                ? `${p.port}:${p.nodePort}/${proto}`
-                : `${p.port}/${proto}`;
-            })
-            .join(",");
-          return {
-            name: obj.metadata?.name,
-            namespace: obj.metadata?.namespace,
-            type: obj.spec?.type,
-            clusterIP: obj.spec?.clusterIP,
-            externalIPs: (obj.status?.loadBalancer?.ingress || [])
-              .map((i) => i.ip || i.hostname)
-              .filter(Boolean)
-              .concat(obj.spec?.externalIPs || []),
-            ports,
-            createdAt,
-          };
-        }
-        case "Deployment": {
-          const desired = obj.spec?.replicas ?? 0;
-          return {
-            name: obj.metadata?.name,
-            namespace: obj.metadata?.namespace,
-            ready: `${obj.status?.readyReplicas || 0}/${desired}`,
-            upToDate: obj.status?.updatedReplicas || 0,
-            available: obj.status?.availableReplicas || 0,
-            createdAt,
-          };
-        }
-        case "ReplicaSet": {
-          const desired = obj.spec?.replicas ?? 0;
-          return {
-            name: obj.metadata?.name,
-            namespace: obj.metadata?.namespace,
-            desired,
-            current: obj.status?.replicas || 0,
-            ready: obj.status?.readyReplicas || 0,
-            createdAt,
-          };
-        }
-        case "StatefulSet": {
-          const specRep = obj.spec?.replicas ?? 0;
-          return {
-            name: obj.metadata?.name,
-            namespace: obj.metadata?.namespace,
-            ready: `${obj.status?.readyReplicas || 0}/${specRep}`,
-            createdAt,
-          };
-        }
-        case "DaemonSet": {
-          return {
-            name: obj.metadata?.name,
-            namespace: obj.metadata?.namespace,
-            desired: obj.status?.desiredNumberScheduled || 0,
-            current: obj.status?.currentNumberScheduled || 0,
-            ready: obj.status?.numberReady || 0,
-            createdAt,
-          };
-        }
-        case "Job": {
-          const completions = obj.spec?.completions ?? 0;
-          return {
-            name: obj.metadata?.name,
-            namespace: obj.metadata?.namespace,
-            completions: `${obj.status?.succeeded || 0}/${completions}`,
-            duration: "-",
-            createdAt,
-          };
-        }
-        case "CronJob": {
-          return {
-            name: obj.metadata?.name,
-            namespace: obj.metadata?.namespace,
-            schedule: obj.spec?.schedule,
-            suspend: !!obj.spec?.suspend,
-            active: (obj.status?.active || []).length,
-            lastSchedule: obj.status?.lastScheduleTime ? "" : "<none>",
-            createdAt,
-          };
-        }
-        case "Node": {
-          let status = "Unknown";
-          (obj.status?.conditions || []).forEach((c) => {
-            if (c.type === "Ready")
-              status = c.status === "True" ? "Ready" : "NotReady";
-          });
-          return { name: obj.metadata?.name, status, createdAt };
-        }
-        case "Namespace": {
-          return { name: obj.metadata?.name, createdAt };
-        }
-      }
-      return null;
-    }
-
-    const kindMap = {
-      Pod: "pods",
-      Service: "services",
-      Deployment: "deployments",
-      ReplicaSet: "replicaSets",
-      StatefulSet: "statefulSets",
-      DaemonSet: "daemonSets",
-      Job: "jobs",
-      CronJob: "cronJobs",
-      Node: "nodes",
-      Namespace: "namespaces",
-    };
-
-    function upsert(kind, type, object) {
-      const keyName = kindMap[kind];
-      if (!keyName) return;
-      setResourceData((prev) => {
-        const list = prev[keyName] || [];
-        // Key strategy
-        const makeKey = (o) => {
-          if (kind === "Node" || kind === "Namespace") return o.name;
-          return (o.namespace ? o.namespace + "/" : "") + o.name;
+        const item = {
+          name: o.metadata?.name || "",
+          namespace: o.metadata?.namespace || "",
+          ready: `${ready}/${total}`,
+          status: o.status?.phase || "Unknown",
+          restart: (o.status?.containerStatuses || []).reduce(
+            (n, cs) => n + (cs.restartCount || 0),
+            0
+          ),
+          age: "",
+          ip: o.status?.podIP || "",
+          node: o.spec?.nodeName || "",
+          createdAt,
         };
-        const norm = object ? normalize(kind, object) : null;
-        if (!norm) return prev;
-        const map = new Map(list.map((o) => [makeKey(o), o]));
-        const k = makeKey(norm);
-        if (type === "DELETED") {
-          map.delete(k);
-        } else {
-          map.set(k, norm);
-        }
-        return { ...prev, [keyName]: Array.from(map.values()) };
-      });
-    }
+        setResourceData((prev) => {
+          const pods = [...(prev.pods || [])];
+          const same = (x) =>
+            x.namespace === item.namespace && x.name === item.name;
+          if (t === "DELETED") rm(pods, same);
+          else upsert(pods, same, item);
+          return { ...prev, pods };
+        });
+        return;
+      }
 
-    es.addEventListener("multi", (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (!msg.kind || !msg.type) return;
-        if (msg.type === "ERROR" || msg.type === "STREAM_END") return;
-        if (["SYNC", "ADDED", "MODIFIED", "DELETED"].includes(msg.type)) {
-          upsert(msg.kind, msg.type, msg.object);
-        }
-      } catch {}
-    });
+      if (kind === "Service") {
+        const ports = (o.spec?.ports || [])
+          .map(
+            (p) =>
+              `${p.port}${p.nodePort ? `:${p.nodePort}` : ""}/${
+                p.protocol || "TCP"
+              }`
+          )
+          .join(", ");
+        const item = {
+          name: o.metadata?.name || "",
+          namespace: o.metadata?.namespace || "",
+          type: o.spec?.type || "",
+          clusterIP: o.spec?.clusterIP || "",
+          externalIPs: (o.spec?.externalIPs || []).join(", "),
+          ports,
+          age: "",
+          createdAt,
+        };
+        setResourceData((prev) => {
+          const services = [...(prev.services || [])];
+          const same = (x) =>
+            x.namespace === item.namespace && x.name === item.name;
+          if (t === "DELETED") rm(services, same);
+          else upsert(services, same, item);
+          return { ...prev, services };
+        });
+        return;
+      }
 
-    es.onerror = () => {
-      console.warn("Multi-resource stream error");
+      if (kind === "Deployment") {
+        const specRep = o.spec?.replicas ?? 0;
+        const ready = o.status?.readyReplicas ?? 0;
+        const updated = o.status?.updatedReplicas ?? 0;
+        const available = o.status?.availableReplicas ?? 0;
+        const item = {
+          name: o.metadata?.name || "",
+          namespace: o.metadata?.namespace || "",
+          ready: `${ready}/${specRep}`,
+          upToDate: `${updated}`,
+          available: `${available}`,
+          age: "",
+          createdAt,
+        };
+        setResourceData((prev) => {
+          const deployments = [...(prev.deployments || [])];
+          const same = (x) =>
+            x.namespace === item.namespace && x.name === item.name;
+          if (t === "DELETED") rm(deployments, same);
+          else upsert(deployments, same, item);
+          return { ...prev, deployments };
+        });
+        return;
+      }
+
+      if (kind === "ReplicaSet") {
+        const desired = o.spec?.replicas ?? 0;
+        const current = o.status?.replicas ?? 0;
+        const ready = o.status?.readyReplicas ?? 0;
+        const item = {
+          name: o.metadata?.name || "",
+          namespace: o.metadata?.namespace || "",
+          desired: `${desired}`,
+          current: `${current}`,
+          ready: `${ready}`,
+          age: "",
+          createdAt,
+        };
+        setResourceData((prev) => {
+          const replicaSets = [...(prev.replicaSets || [])];
+          const same = (x) =>
+            x.namespace === item.namespace && x.name === item.name;
+          if (t === "DELETED") rm(replicaSets, same);
+          else upsert(replicaSets, same, item);
+          return { ...prev, replicaSets };
+        });
+        return;
+      }
+
+      if (kind === "StatefulSet") {
+        const specRep = o.spec?.replicas ?? 0;
+        const ready = o.status?.readyReplicas ?? 0;
+        const item = {
+          name: o.metadata?.name || "",
+          namespace: o.metadata?.namespace || "",
+          ready: `${ready}/${specRep}`,
+          age: "",
+          createdAt,
+        };
+        setResourceData((prev) => {
+          const statefulSets = [...(prev.statefulSets || [])];
+          const same = (x) =>
+            x.namespace === item.namespace && x.name === item.name;
+          if (t === "DELETED") rm(statefulSets, same);
+          else upsert(statefulSets, same, item);
+          return { ...prev, statefulSets };
+        });
+        return;
+      }
+
+      if (kind === "DaemonSet") {
+        const desired = o.status?.desiredNumberScheduled ?? 0;
+        const current = o.status?.currentNumberScheduled ?? 0;
+        const ready = o.status?.numberReady ?? 0;
+        const item = {
+          name: o.metadata?.name || "",
+          namespace: o.metadata?.namespace || "",
+          desired: `${desired}`,
+          current: `${current}`,
+          ready: `${ready}`,
+          age: "",
+          createdAt,
+        };
+        setResourceData((prev) => {
+          const daemonSets = [...(prev.daemonSets || [])];
+          const same = (x) =>
+            x.namespace === item.namespace && x.name === item.name;
+          if (t === "DELETED") rm(daemonSets, same);
+          else upsert(daemonSets, same, item);
+          return { ...prev, daemonSets };
+        });
+        return;
+      }
+
+      if (kind === "Job") {
+        const completions =
+          (o.status?.succeeded ?? 0) + (o.status?.failed ?? 0);
+        const duration = ""; // optional: compute from start/completion
+        const item = {
+          name: o.metadata?.name || "",
+          namespace: o.metadata?.namespace || "",
+          completions: `${completions}`,
+          duration,
+          age: "",
+          createdAt,
+        };
+        setResourceData((prev) => {
+          const jobs = [...(prev.jobs || [])];
+          const same = (x) =>
+            x.namespace === item.namespace && x.name === item.name;
+          if (t === "DELETED") rm(jobs, same);
+          else upsert(jobs, same, item);
+          return { ...prev, jobs };
+        });
+        return;
+      }
+
+      if (kind === "CronJob") {
+        const item = {
+          name: o.metadata?.name || "",
+          namespace: o.metadata?.namespace || "",
+          schedule: o.spec?.schedule || "",
+          suspend: !!o.spec?.suspend,
+          active: (o.status?.active || []).length || 0,
+          lastSchedule: o.status?.lastScheduleTime || "",
+          age: "",
+          createdAt,
+        };
+        setResourceData((prev) => {
+          const cronJobs = [...(prev.cronJobs || [])];
+          const same = (x) =>
+            x.namespace === item.namespace && x.name === item.name;
+          if (t === "DELETED") rm(cronJobs, same);
+          else upsert(cronJobs, same, item);
+          return { ...prev, cronJobs };
+        });
+        return;
+      }
+
+      if (kind === "Node") {
+        const item = {
+          name: o.metadata?.name || "",
+          age: "",
+          createdAt,
+        };
+        setNodes((prev) => {
+          const list = [...prev];
+          const same = (x) => x.name === item.name;
+          if (t === "DELETED") return rm(list, same);
+          return upsert(list, same, item);
+        });
+        return;
+      }
+
+      if (kind === "Namespace") {
+        const item = {
+          name: o.metadata?.name || "",
+        };
+        setNamespaces((prev) => {
+          const list = [...prev];
+          const same = (x) => x.name === item.name;
+          if (t === "DELETED") return rm(list, same);
+          return upsert(list, same, item);
+        });
+        return;
+      }
     };
 
-    return () => es.close();
+    es.addEventListener("open", onOpen);
+    es.addEventListener("multi", handle);
+    es.onerror = onError;
+
+    return () => {
+      es.removeEventListener("open", onOpen);
+      es.removeEventListener("multi", handle);
+      es.close();
+    };
   }, [authReady]);
 
   // fetch cluster address only when authed

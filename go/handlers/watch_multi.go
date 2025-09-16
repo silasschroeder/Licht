@@ -14,244 +14,217 @@ import (
 
 // MultiEvent represents a generic resource watch event
 type MultiEvent struct {
-    Kind   string      `json:"kind"`
-    Type   string      `json:"type"` // SYNC, ADDED, MODIFIED, DELETED, ERROR, END
-    Object interface{} `json:"object,omitempty"`
-    Err    string      `json:"err,omitempty"`
+	Kind   string      `json:"kind"`
+	Type   string      `json:"type"` // SYNC, ADDED, MODIFIED, DELETED, ERROR, END
+	Object interface{} `json:"object,omitempty"`
+	Err    string      `json:"err,omitempty"`
 }
 
 // WatchAll streams multiple Kubernetes resource events via SSE
 func WatchAll(store *sessions.CookieStore) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        client, err := getK8sClient(r, store)
-        if err != nil {
-            http.Error(w, "unauthorized", http.StatusUnauthorized)
-            return
-        }
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		client, err := getK8sClient(r, store)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("auth: %v", err), http.StatusUnauthorized)
+			return
+		}
 
-        w.Header().Set("Content-Type", "text/event-stream")
-        w.Header().Set("Cache-Control", "no-cache")
-        w.Header().Set("Connection", "keep-alive")
-        w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-        w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		// Helpful with proxies (dev)
+		w.Header().Set("X-Accel-Buffering", "no")
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
-        flusher, ok := w.(http.Flusher)
-        if !ok {
-            http.Error(w, "stream unsupported", http.StatusInternalServerError)
-            return
-        }
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
 
-        type starter struct {
-            kind     string
-            listFn   func() (string, []interface{}, error)          // returns resourceVersion + objects
-            watchFn  func(rv string) (watch.Interface, error)
-            enabled  bool
-        }
+		var mu sync.Mutex
+		write := func(ev MultiEvent) {
+			mu.Lock()
+			defer mu.Unlock()
+			b, _ := json.Marshal(ev)
+			fmt.Fprint(w, "event: multi\n")
+			fmt.Fprint(w, "data: ")
+			w.Write(b)
+			fmt.Fprint(w, "\n\n")
+			flusher.Flush()
+		}
 
-        resources := []starter{
-            {
-                kind: "Pod",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.CoreV1().Pods("").List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.CoreV1().Pods("").Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-            {
-                kind: "Service",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.CoreV1().Services("").List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.CoreV1().Services("").Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-            {
-                kind: "Deployment",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.AppsV1().Deployments("").List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.AppsV1().Deployments("").Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-            {
-                kind: "ReplicaSet",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.AppsV1().ReplicaSets("").List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.AppsV1().ReplicaSets("").Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-            {
-                kind: "StatefulSet",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.AppsV1().StatefulSets("").List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.AppsV1().StatefulSets("").Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-            {
-                kind: "DaemonSet",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.AppsV1().DaemonSets("").List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.AppsV1().DaemonSets("").Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-            {
-                kind: "Job",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.BatchV1().Jobs("").List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.BatchV1().Jobs("").Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-            {
-                kind: "CronJob",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.BatchV1().CronJobs("").List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.BatchV1().CronJobs("").Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-            {
-                kind: "Node",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.CoreV1().Nodes().List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.CoreV1().Nodes().Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-            {
-                kind: "Namespace",
-                listFn: func() (string, []interface{}, error) {
-                    l, err := client.CoreV1().Namespaces().List(r.Context(), metav1.ListOptions{})
-                    if err != nil { return "", nil, err }
-                    arr := make([]interface{}, 0, len(l.Items))
-                    for i := range l.Items { arr = append(arr, &l.Items[i]) }
-                    return l.ResourceVersion, arr, nil
-                },
-                watchFn: func(rv string) (watch.Interface, error) {
-                    return client.CoreV1().Namespaces().Watch(r.Context(), metav1.ListOptions{ResourceVersion: rv, Watch: true})
-                },
-                enabled: true,
-            },
-        }
+		// Heartbeat (prevents idle timeouts)
+		tick := time.NewTicker(20 * time.Second)
+		defer tick.Stop()
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-tick.C:
+					mu.Lock()
+					fmt.Fprintf(w, ": ping %d\n\n", time.Now().Unix())
+					flusher.Flush()
+					mu.Unlock()
+				}
+			}
+		}()
 
-        eventCh := make(chan MultiEvent, 256)
-        var wg sync.WaitGroup
+		type rvs struct {
+			Pods, Services, Deployments, ReplicaSets, StatefulSets, DaemonSets, Jobs, CronJobs, Nodes, Namespaces string
+		}
+		var rv rvs
 
-        // Initial SYNC
-        for _, res := range resources {
-            if !res.enabled { continue }
-            rv, objs, err := res.listFn()
-            if err != nil {
-                eventCh <- MultiEvent{Kind: res.kind, Type: "ERROR", Err: err.Error()}
-                continue
-            }
-            for _, o := range objs {
-                eventCh <- MultiEvent{Kind: res.kind, Type: "SYNC", Object: o}
-            }
+		// Initial SYNC + capture resourceVersion
+		if list, err := client.CoreV1().Pods("").List(ctx, metav1.ListOptions{}); err == nil {
+			rv.Pods = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "Pod", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
+		if list, err := client.CoreV1().Services("").List(ctx, metav1.ListOptions{}); err == nil {
+			rv.Services = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "Service", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
+		if list, err := client.AppsV1().Deployments("").List(ctx, metav1.ListOptions{}); err == nil {
+			rv.Deployments = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "Deployment", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
+		if list, err := client.AppsV1().ReplicaSets("").List(ctx, metav1.ListOptions{}); err == nil {
+			rv.ReplicaSets = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "ReplicaSet", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
+		if list, err := client.AppsV1().StatefulSets("").List(ctx, metav1.ListOptions{}); err == nil {
+			rv.StatefulSets = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "StatefulSet", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
+		if list, err := client.AppsV1().DaemonSets("").List(ctx, metav1.ListOptions{}); err == nil {
+			rv.DaemonSets = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "DaemonSet", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
+		if list, err := client.BatchV1().Jobs("").List(ctx, metav1.ListOptions{}); err == nil {
+			rv.Jobs = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "Job", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
+		if list, err := client.BatchV1().CronJobs("").List(ctx, metav1.ListOptions{}); err == nil {
+			rv.CronJobs = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "CronJob", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
+		if list, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{}); err == nil {
+			rv.Nodes = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "Node", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
+		if list, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{}); err == nil {
+			rv.Namespaces = list.ResourceVersion
+			for i := range list.Items {
+				write(MultiEvent{Kind: "Namespace", Type: "SYNC", Object: list.Items[i]})
+			}
+		}
 
-            wInt, err := res.watchFn(rv)
-            if err != nil {
-                eventCh <- MultiEvent{Kind: res.kind, Type: "ERROR", Err: err.Error()}
-                continue
-            }
+		type stopper interface{ Stop() }
+		var stops []stopper
+		stopAll := func() {
+			for _, s := range stops {
+				if s != nil {
+					s.Stop()
+				}
+			}
+		}
 
-            wg.Add(1)
-            go func(kind string, wi watch.Interface) {
-                defer wg.Done()
-                defer wi.Stop()
-                for ev := range wi.ResultChan() {
-                    eventCh <- MultiEvent{
-                        Kind:   kind,
-                        Type:   string(ev.Type),
-                        Object: ev.Object,
-                    }
-                }
-                eventCh <- MultiEvent{Kind: kind, Type: "END"}
-            }(res.kind, wInt)
-        }
+		startWatch := func(kind string, start func(metav1.ListOptions) (watch.Interface, error), resourceVersion string) {
+			opts := metav1.ListOptions{
+				Watch:               true,
+				ResourceVersion:     resourceVersion,
+				AllowWatchBookmarks: true,
+			}
+			w, err := start(opts)
+			if err != nil {
+				write(MultiEvent{Kind: kind, Type: "ERROR", Err: err.Error()})
+				return
+			}
+			stops = append(stops, w)
 
-        heartbeat := time.NewTicker(25 * time.Second)
-        defer heartbeat.Stop()
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case ev, ok := <-w.ResultChan():
+						if !ok {
+							write(MultiEvent{Kind: kind, Type: "END"})
+							return
+						}
+						var t string
+						switch ev.Type {
+						case watch.Added:
+							t = "ADDED"
+						case watch.Modified:
+							t = "MODIFIED"
+						case watch.Deleted:
+							t = "DELETED"
+						case watch.Bookmark:
+							continue
+						default:
+							t = string(ev.Type)
+						}
+						write(MultiEvent{Kind: kind, Type: t, Object: ev.Object})
+					}
+				}
+			}()
+		}
 
-        go func() {
-            wg.Wait()
-            close(eventCh)
-        }()
+		// Start watches
+		startWatch("Pod", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.CoreV1().Pods("").Watch(ctx, o)
+		}, rv.Pods)
+		startWatch("Service", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.CoreV1().Services("").Watch(ctx, o)
+		}, rv.Services)
+		startWatch("Deployment", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.AppsV1().Deployments("").Watch(ctx, o)
+		}, rv.Deployments)
+		startWatch("ReplicaSet", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.AppsV1().ReplicaSets("").Watch(ctx, o)
+		}, rv.ReplicaSets)
+		startWatch("StatefulSet", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.AppsV1().StatefulSets("").Watch(ctx, o)
+		}, rv.StatefulSets)
+		startWatch("DaemonSet", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.AppsV1().DaemonSets("").Watch(ctx, o)
+		}, rv.DaemonSets)
+		startWatch("Job", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.BatchV1().Jobs("").Watch(ctx, o)
+		}, rv.Jobs)
+		startWatch("CronJob", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.BatchV1().CronJobs("").Watch(ctx, o)
+		}, rv.CronJobs)
+		startWatch("Node", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.CoreV1().Nodes().Watch(ctx, o)
+		}, rv.Nodes)
+		startWatch("Namespace", func(o metav1.ListOptions) (watch.Interface, error) {
+			return client.CoreV1().Namespaces().Watch(ctx, o)
+		}, rv.Namespaces)
 
-        for {
-            select {
-            case evt, ok := <-eventCh:
-                if !ok {
-                    fmt.Fprintf(w, "event: multi\ndata: {\"type\":\"STREAM_END\"}\n\n")
-                    flusher.Flush()
-                    return
-                }
-                b, _ := json.Marshal(evt)
-                fmt.Fprintf(w, "event: multi\ndata: %s\n\n", b)
-                flusher.Flush()
-            case <-heartbeat.C:
-                fmt.Fprintf(w, ": ping\n\n")
-                flusher.Flush()
-            case <-r.Context().Done():
-                return
-            }
-        }
-    }
+		<-ctx.Done()
+		stopAll()
+	}
 }

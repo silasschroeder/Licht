@@ -138,18 +138,6 @@ npm run dev
 
 The frontend uses Turbopack for fast development builds and hot reloading.
 
-## 📈 Recent Development
-
-### Commit History
-
-- **`26d802e`** - Initial plan (copilot-swe-agent[bot], 2 minutes ago)
-- **`cdbdc81`** - mini pod square click logic (Silas, 30 minutes ago)
-  - Major initial implementation: 4,281 lines added across 24 files
-  - Complete backend API with authentication and resource handlers
-  - Full Next.js frontend with dashboard and login functionality
-  - Real-time updates via Server-Sent Events
-  - Pod visualization with interactive click logic
-
 ## 🤝 Contributing
 
 Licht is under active development. Contributions are welcome as we work towards making it a comprehensive Kubernetes management platform.
