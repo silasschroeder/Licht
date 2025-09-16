@@ -564,3 +564,60 @@
     background: transparent;
   }
 }
+
+/* Themed modal */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 28, 36, 0.35);
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalWindow {
+  width: min(900px, 92vw);
+  height: min(70vh, 90vh);
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(120, 140, 160, 0.25);
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e6ea;
+  background: linear-gradient(135deg, #f6f9fc, #ffffff);
+}
+
+.modalTitle {
+  font-weight: 600;
+  color: #22323d;
+  font-size: 14px;
+}
+
+.modalActions {
+  display: flex;
+  gap: 8px;
+}
+
+.modalPre {
+  margin: 0;
+  padding: 12px 14px;
+  white-space: pre;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  height: 100%;
+  background: #f8fafc;
+  color: #22323d;
+  border-top: 1px solid #eef1f3;
+}

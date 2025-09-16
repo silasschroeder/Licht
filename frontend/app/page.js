@@ -6,6 +6,7 @@ import AuthCheck from "../components/AuthCheck";
 import { apiGet } from "../lib/api";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
+import YamlViewer from "../components/YamlViewer";
 
 const API_BASE = ""; // same-origin via Next rewrite
 
@@ -38,6 +39,9 @@ export default function Dashboard() {
     cronJobs: [],
   });
   const [clusterAddress, setClusterAddress] = useState("");
+  // ADD: YAML viewer state
+  const [yamlOpen, setYamlOpen] = useState(false);
+  const [yamlTarget, setYamlTarget] = useState(null);
 
   const router = useRouter();
 
@@ -262,7 +266,6 @@ export default function Dashboard() {
     const columns = getTableConfig(type);
     if (!columns.length) return null;
 
-    // Preserve namespace + createdAt for highlight + age
     const rows = filtered.map((orig) => {
       const rowData = {};
       columns.forEach(([key]) => {
@@ -285,6 +288,8 @@ export default function Dashboard() {
                   {columns.map(([k, label]) => (
                     <th key={k}>{label}</th>
                   ))}
+                  {/* ADD: Actions column */}
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -308,6 +313,24 @@ export default function Dashboard() {
                         if (value == null) value = "";
                         return <td key={k}>{String(value)}</td>;
                       })}
+                      {/* ADD: YAML action */}
+                      <td>
+                        <button
+                          className={styles.resourceTab}
+                          onClick={() => {
+                            const kind = getKindForType(type);
+                            if (!kind) return;
+                            setYamlTarget({
+                              kind,
+                              namespace: row.namespace || null,
+                              name: row.name,
+                            });
+                            setYamlOpen(true);
+                          }}
+                        >
+                          YAML
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -867,8 +890,6 @@ export default function Dashboard() {
 
               {/* MOVED: Tabs now below refresh, above table */}
               <ResourceTabs />
-
-              {/* Table */}
               <ResourceTable
                 type={resourceType}
                 namespace={selectedNamespace}
@@ -877,6 +898,16 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        {/* ADD: YAML modal */}
+        {yamlTarget && (
+          <YamlViewer
+            kind={yamlTarget.kind}
+            namespace={yamlTarget.namespace}
+            name={yamlTarget.name}
+            open={yamlOpen}
+            onClose={() => setYamlOpen(false)}
+          />
+        )}
       </AuthCheck>
     </div>
   );
@@ -898,4 +929,21 @@ function computeVisibleColumns(podCount) {
   if (podCount <= BASE_COLUMNS) return podCount;
   if (podCount <= 12) return BASE_COLUMNS;
   return Math.ceil(podCount / 3);
+}
+
+// Map table type -> Kubernetes Kind for the YAML endpoint
+const kindByType = {
+  pods: "Pod",
+  services: "Service",
+  deployments: "Deployment",
+  replicaSets: "ReplicaSet",
+  statefulSets: "StatefulSet",
+  daemonSets: "DaemonSet",
+  jobs: "Job",
+  cronJobs: "CronJob",
+  nodes: "Node",
+  namespaces: "Namespace",
+};
+function getKindForType(type) {
+  return kindByType[type] || null;
 }

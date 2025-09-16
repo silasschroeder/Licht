@@ -191,11 +191,6 @@ func WatchAll(store *sessions.CookieStore) http.HandlerFunc {
             },
         }
 
-        type watchBundle struct {
-            kind  string
-            w     watch.Interface
-        }
-
         eventCh := make(chan MultiEvent, 256)
         var wg sync.WaitGroup
 

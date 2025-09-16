@@ -92,6 +92,9 @@ func main() {
 	r.Handle("/api/jobs", auth(handlers.GetJobs(store))).Methods("GET")
 	r.Handle("/api/cronjobs", auth(handlers.GetCronJobs(store))).Methods("GET")
 
+	// YAML inspect route
+	r.Handle("/api/yaml", auth(handlers.GetYAML(store))).Methods("GET")
+
 	// SSE watch route
 	r.Handle("/api/watch/pods", auth(handlers.WatchPods(store))).Methods("GET")
 	// NEW: multi-resource stream
