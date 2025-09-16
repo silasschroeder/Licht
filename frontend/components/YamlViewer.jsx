@@ -5,35 +5,42 @@ import styles from "@/app/page.module.css";
 import Prism from "prismjs";
 import "prismjs/components/prism-yaml";
 
-// Optional: if you want to support copy of highlighted selection nicely
-// import "prismjs/plugins/toolbar/prism-toolbar.css";
-// import "prismjs/plugins/copy-to-clipboard/prism-copy-to-clipboard";
-
 export default function YamlViewer({ kind, namespace, name, open, onClose }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [source, setSource] = useState("live"); // or "last-applied"
+  const [saving, setSaving] = useState(false);
+  const [source, setSource] = useState("live");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [error, setError] = useState(null);
+
   const nsParam = namespace
     ? `&namespace=${encodeURIComponent(namespace)}`
     : "";
 
+  // fetch current YAML
   useEffect(() => {
     if (!open) return;
     let aborted = false;
     (async () => {
       setLoading(true);
+      setError(null);
       try {
         const url = `/api/yaml?kind=${encodeURIComponent(
           kind
         )}&name=${encodeURIComponent(
           name
-        )}${nsParam}&source=${source}&clean=1&mask=1`;
+        )}${nsParam}&source=${source}&clean=1&mask=0`;
         const res = await fetch(url, { credentials: "include" });
         const t = await res.text();
         if (!res.ok) throw new Error(t || `HTTP ${res.status}`);
-        if (!aborted) setText(t);
+        if (!aborted) {
+          setText(t);
+          if (!isEditing) setEditText(t);
+        }
       } catch (e) {
         if (!aborted) setText(`# Error: ${e.message}`);
+        if (!aborted) setError(e.message);
       } finally {
         if (!aborted) setLoading(false);
       }
@@ -44,7 +51,6 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, kind, namespace, name, source]);
 
-  // Compute highlighted HTML once per text change
   const highlighted = useMemo(() => {
     try {
       return Prism.highlight(text, Prism.languages.yaml, "yaml");
@@ -67,8 +73,48 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(isEditing ? editText : text);
     } catch {}
+  };
+
+  const startEdit = () => {
+    setEditText(text);
+    setIsEditing(true);
+    setError(null);
+  };
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditText(text);
+    setError(null);
+  };
+  const saveEdit = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/yaml?kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(
+          name
+        )}${nsParam}`,
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/yaml",
+            Accept: "application/x-yaml",
+          },
+          body: editText,
+        }
+      );
+      const t = await res.text();
+      if (!res.ok) throw new Error(t || `HTTP ${res.status}`);
+      // Update viewer to the returned YAML
+      setText(t);
+      setIsEditing(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -80,28 +126,141 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
             {name}
           </div>
           <div className={styles.modalActions}>
-            <select
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              className={styles.resourceTab}
+            {!isEditing && (
+              <select
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                className={styles.resourceTab}
+              >
+                <option value="live">Live</option>
+                <option value="last-applied">Last-applied</option>
+              </select>
+            )}
+
+            {/* Copy */}
+            <button
+              onClick={copy}
+              className={`${styles.resourceTab} ${styles.iconButton}`}
+              title="Copy YAML"
+              aria-label="Copy YAML"
+              disabled={saving}
             >
-              <option value="live">Live</option>
-              <option value="last-applied">Last-applied</option>
-            </select>
-            <button onClick={copy} className={styles.resourceTab}>
-              Copy
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="2" width="6" height="4" rx="1"></rect>
+                <path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"></path>
+              </svg>
             </button>
-            <button onClick={download} className={styles.resourceTab}>
-              Download
+
+            {/* Edit or Save/Cancel */}
+            {!isEditing ? (
+              <button
+                onClick={startEdit}
+                className={`${styles.resourceTab} ${styles.iconButton}`}
+                title="Edit YAML"
+                aria-label="Edit YAML"
+                disabled={loading || !!error}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 20h9"></path>
+                  <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                </svg>
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={saveEdit}
+                  className={styles.resourceTab}
+                  disabled={saving}
+                  title="Save"
+                  aria-label="Save"
+                >
+                  {saving ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  className={styles.resourceTab}
+                  disabled={saving}
+                  title="Cancel"
+                  aria-label="Cancel"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+
+            {/* Download */}
+            <button
+              onClick={download}
+              className={`${styles.resourceTab} ${styles.iconButton}`}
+              title="Download YAML"
+              aria-label="Download YAML"
+              disabled={saving}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <path d="M7 10l5 5 5-5"></path>
+                <path d="M12 15V3"></path>
+              </svg>
             </button>
-            <button onClick={onClose} className={styles.resourceTab}>
-              Close
+
+            {/* Close (X with red hover) */}
+            <button
+              onClick={onClose}
+              className={`${styles.resourceTab} ${styles.iconButton} ${styles.iconClose}`}
+              title="Close"
+              aria-label="Close"
+              disabled={saving}
+            >
+              ×
             </button>
           </div>
         </div>
 
+        {error && (
+          <div className={styles.error} style={{ margin: "10px 12px" }}>
+            {String(error)}
+          </div>
+        )}
+
         {loading ? (
           <pre className={styles.modalPre}>Loading…</pre>
+        ) : isEditing ? (
+          <textarea
+            className={styles.modalEditor}
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            spellCheck={false}
+          />
         ) : (
           <pre className={styles.modalPre}>
             <code

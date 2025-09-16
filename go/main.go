@@ -44,16 +44,16 @@ func cors(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		for _, o := range allowed {
 			if origin == o {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				break
+				w.Header().Set("Access-Control-Allow-Origin", o)
 			}
 		}
 		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		// Add PUT for editing
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
 		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -94,6 +94,8 @@ func main() {
 
 	// YAML inspect route
 	r.Handle("/api/yaml", auth(handlers.GetYAML(store))).Methods("GET")
+	// YAML edit/apply route
+	r.Handle("/api/yaml", auth(handlers.ApplyYAML(store))).Methods("PUT")
 
 	// SSE watch route
 	r.Handle("/api/watch/pods", auth(handlers.WatchPods(store))).Methods("GET")

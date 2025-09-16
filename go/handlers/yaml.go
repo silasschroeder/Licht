@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gorilla/sessions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 )
@@ -149,6 +151,20 @@ func maskSecret(m map[string]interface{}) {
 	}
 }
 
+// defaultAPIVersionForKind provides a sane default apiVersion per kind.
+func defaultAPIVersionForKind(kindLower string) string {
+	switch kindLower {
+	case "pod", "service", "configmap", "secret", "node", "namespace":
+		return "v1"
+	case "deployment", "replicaset", "statefulset", "daemonset":
+		return "apps/v1"
+	case "job", "cronjob":
+		return "batch/v1"
+	default:
+		return ""
+	}
+}
+
 // getObjectYAMLMap fetches a resource and converts it into a map[string]interface{} for cleaning and YAML marshaling.
 func getObjectYAMLMap(ctx context.Context, client *kubernetes.Clientset, kindLower, ns, name string) (map[string]interface{}, error) {
 	var obj interface{}
@@ -197,8 +213,166 @@ func getObjectYAMLMap(ctx context.Context, client *kubernetes.Clientset, kindLow
 	}
 
 	// Ensure Kind present if roundtrip omitted it
-	if _, ok := m["kind"]; !ok {
+	if _, ok := m["kind"]; !ok || fmt.Sprint(m["kind"]) == "" {
 		m["kind"] = strings.Title(kindLower)
 	}
+	// Ensure apiVersion present; some roundtrips omit TypeMeta
+	if _, ok := m["apiVersion"]; !ok || fmt.Sprint(m["apiVersion"]) == "" {
+		if def := defaultAPIVersionForKind(kindLower); def != "" {
+			m["apiVersion"] = def
+		}
+	}
 	return m, nil
+}
+
+// ApplyYAML accepts a YAML (or JSON) manifest for an existing resource and applies it via SSA.
+func ApplyYAML(store *sessions.CookieStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		client, err := getK8sClient(r, store)
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		q := r.URL.Query()
+		kind := strings.TrimSpace(q.Get("kind"))
+		name := strings.TrimSpace(q.Get("name"))
+		ns := strings.TrimSpace(q.Get("namespace"))
+		if kind == "" || name == "" {
+			http.Error(w, "missing kind or name", http.StatusBadRequest)
+			return
+		}
+
+		// Read body
+		body, err := io.ReadAll(r.Body)
+		if err != nil || len(body) == 0 {
+			http.Error(w, "empty body", http.StatusBadRequest)
+			return
+		}
+
+		// Normalize input to JSON
+		jsonBytes, err := yaml.YAMLToJSON(body)
+		if err != nil {
+			http.Error(w, "invalid YAML: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Decode into a generic map so we can enforce required fields
+		var patch map[string]interface{}
+		if err := json.Unmarshal(jsonBytes, &patch); err != nil {
+			http.Error(w, "invalid JSON after YAML conversion: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Get live object to copy kind/apiVersion if not present
+		lk := strings.ToLower(kind)
+		live, err := getObjectYAMLMap(r.Context(), client, lk, ns, name)
+		if err != nil {
+			http.Error(w, "fetch failed: "+err.Error(), http.StatusNotFound)
+			return
+		}
+
+		// Ensure metadata.name/namespace, kind, apiVersion
+		ensureMetaAndType(&patch, live, name, ns, lk)
+
+		// Marshal patch back to JSON
+		payload, err := json.Marshal(patch)
+		if err != nil {
+			http.Error(w, "marshal failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Apply via typed client (server-side apply)
+		trueVal := true
+		opts := metav1.PatchOptions{
+			FieldManager: "licht",
+			Force:        &trueVal,
+		}
+
+		var updated interface{}
+		switch lk {
+		case "pod":
+			updated, err = client.CoreV1().Pods(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "service":
+			updated, err = client.CoreV1().Services(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "deployment":
+			updated, err = client.AppsV1().Deployments(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "replicaset":
+			updated, err = client.AppsV1().ReplicaSets(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "statefulset":
+			updated, err = client.AppsV1().StatefulSets(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "daemonset":
+			updated, err = client.AppsV1().DaemonSets(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "job":
+			updated, err = client.BatchV1().Jobs(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "cronjob":
+			updated, err = client.BatchV1().CronJobs(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "node":
+			updated, err = client.CoreV1().Nodes().Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "namespace":
+			updated, err = client.CoreV1().Namespaces().Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "configmap":
+			updated, err = client.CoreV1().ConfigMaps(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		case "secret":
+			updated, err = client.CoreV1().Secrets(ns).Patch(r.Context(), name, types.ApplyPatchType, payload, opts)
+		default:
+			http.Error(w, "unsupported kind "+kind, http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			http.Error(w, "apply failed: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Return updated object as YAML
+		b, err := json.Marshal(updated)
+		if err != nil {
+			http.Error(w, "marshal updated failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		yml, err := yaml.JSONToYAML(b)
+		if err != nil {
+			http.Error(w, "yaml encode failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
+		_, _ = w.Write(yml)
+	}
+}
+
+// ensureMetaAndType fills metadata.name/namespace and kind/apiVersion if missing.
+func ensureMetaAndType(patch *map[string]interface{}, live map[string]interface{}, name, ns, expectedKindLower string) {
+	m := *patch
+	meta, _ := m["metadata"].(map[string]interface{})
+	if meta == nil {
+		meta = map[string]interface{}{}
+	}
+	if _, ok := meta["name"]; !ok || fmt.Sprint(meta["name"]) == "" {
+		meta["name"] = name
+	}
+	if ns != "" {
+		if _, ok := meta["namespace"]; !ok || fmt.Sprint(meta["namespace"]) == "" {
+			meta["namespace"] = ns
+		}
+	}
+	m["metadata"] = meta
+
+	// Kind
+	if _, ok := m["kind"]; !ok || fmt.Sprint(m["kind"]) == "" {
+		if k, ok := live["kind"]; ok && fmt.Sprint(k) != "" {
+			m["kind"] = k
+		} else {
+			m["kind"] = strings.Title(expectedKindLower)
+		}
+	}
+	// apiVersion
+	if _, ok := m["apiVersion"]; !ok || fmt.Sprint(m["apiVersion"]) == "" {
+		if av, ok := live["apiVersion"]; ok && fmt.Sprint(av) != "" {
+			m["apiVersion"] = av
+		} else if def := defaultAPIVersionForKind(expectedKindLower); def != "" {
+			m["apiVersion"] = def
+		}
+	}
+
+	*patch = m
 }
