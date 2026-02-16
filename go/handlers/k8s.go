@@ -16,7 +16,7 @@ import (
 )
 
 // getK8sClient creates a Kubernetes client from session credentials
-func getK8sClient(r *http.Request, store *sessions.CookieStore) (*kubernetes.Clientset, error) {
+func getK8sClient(r *http.Request, store sessions.Store) (*kubernetes.Clientset, error) {
 	session, _ := store.Get(r, "k8s-session")
 
 	serverURL, ok := session.Values["server_url"].(string)
@@ -76,8 +76,8 @@ func getK8sClient(r *http.Request, store *sessions.CookieStore) (*kubernetes.Cli
 	return kubernetes.NewForConfig(cfg)
 }
 
-// GetPods returns all pods
-func GetPods(store *sessions.CookieStore) http.HandlerFunc {
+// GetPods returns list of pods
+func GetPods(store sessions.Store) http.HandlerFunc {
 	type PodInfo struct {
 		Name      string `json:"name"`
 		Namespace string `json:"namespace"`
@@ -121,8 +121,8 @@ func GetPods(store *sessions.CookieStore) http.HandlerFunc {
 	}
 }
 
-// GetNodes returns all nodes
-func GetNodes(store *sessions.CookieStore) http.HandlerFunc {
+// GetNodes returns list of nodes
+func GetNodes(store sessions.Store) http.HandlerFunc {
 	type NodeInfo struct {
 		Name   string `json:"name"`
 		Status string `json:"status"`
@@ -162,8 +162,8 @@ func GetNodes(store *sessions.CookieStore) http.HandlerFunc {
 	}
 }
 
-// GetNamespaces returns all namespaces
-func GetNamespaces(store *sessions.CookieStore) http.HandlerFunc {
+// GetNamespaces returns list of namespaces
+func GetNamespaces(store sessions.Store) http.HandlerFunc {
 	type NsInfo struct {
 		Name string `json:"name"`
 		Age  string `json:"age"`
@@ -187,8 +187,8 @@ func GetNamespaces(store *sessions.CookieStore) http.HandlerFunc {
 	}
 }
 
-// GetServices returns all services
-func GetServices(store *sessions.CookieStore) http.HandlerFunc {
+// GetServices returns list of services
+func GetServices(store sessions.Store) http.HandlerFunc {
 	type SvcInfo struct {
 		Name        string   `json:"name"`
 		Namespace   string   `json:"namespace"`
@@ -234,8 +234,8 @@ func GetServices(store *sessions.CookieStore) http.HandlerFunc {
 	}
 }
 
-// GetDeployments returns all deployments
-func GetDeployments(store *sessions.CookieStore) http.HandlerFunc {
+// GetDeployments returns list of deployments
+func GetDeployments(store sessions.Store) http.HandlerFunc {
 	type DeployInfo struct {
 		Name      string `json:"name"`
 		Namespace string `json:"namespace"`
@@ -274,8 +274,8 @@ func GetDeployments(store *sessions.CookieStore) http.HandlerFunc {
 	}
 }
 
-// GetReplicaSets returns all replicasets
-func GetReplicaSets(store *sessions.CookieStore) http.HandlerFunc {
+// GetReplicaSets returns list of replicasets
+func GetReplicaSets(store sessions.Store) http.HandlerFunc {
 	type RSInfo struct {
 		Name      string `json:"name"`
 		Namespace string `json:"namespace"`
@@ -314,8 +314,8 @@ func GetReplicaSets(store *sessions.CookieStore) http.HandlerFunc {
 	}
 }
 
-// GetStatefulSets returns all statefulsets
-func GetStatefulSets(store *sessions.CookieStore) http.HandlerFunc {
+// GetStatefulSets returns list of statefulsets
+func GetStatefulSets(store sessions.Store) http.HandlerFunc {
 	type SSInfo struct {
 		Name      string `json:"name"`
 		Namespace string `json:"namespace"`
@@ -350,8 +350,8 @@ func GetStatefulSets(store *sessions.CookieStore) http.HandlerFunc {
 	}
 }
 
-// GetDaemonSets returns all daemonsets
-func GetDaemonSets(store *sessions.CookieStore) http.HandlerFunc {
+// GetDaemonSets returns list of daemonsets
+func GetDaemonSets(store sessions.Store) http.HandlerFunc {
 	type DSInfo struct {
 		Name      string `json:"name"`
 		Namespace string `json:"namespace"`
@@ -386,8 +386,8 @@ func GetDaemonSets(store *sessions.CookieStore) http.HandlerFunc {
 	}
 }
 
-// GetJobs returns all jobs
-func GetJobs(store *sessions.CookieStore) http.HandlerFunc {
+// GetJobs returns list of jobs
+func GetJobs(store sessions.Store) http.HandlerFunc {
 	type JobInfo struct {
 		Name        string `json:"name"`
 		Namespace   string `json:"namespace"`
@@ -430,8 +430,8 @@ func GetJobs(store *sessions.CookieStore) http.HandlerFunc {
 	}
 }
 
-// GetCronJobs returns all cronjobs
-func GetCronJobs(store *sessions.CookieStore) http.HandlerFunc {
+// GetCronJobs returns list of cronjobs
+func GetCronJobs(store sessions.Store) http.HandlerFunc {
 	type CJInfo struct {
 		Name         string `json:"name"`
 		Namespace    string `json:"namespace"`

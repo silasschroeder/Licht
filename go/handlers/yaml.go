@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func GetYAML(store *sessions.CookieStore) http.HandlerFunc {
+func GetYAML(store sessions.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		client, err := getK8sClient(r, store)
 		if err != nil {
@@ -226,7 +226,7 @@ func getObjectYAMLMap(ctx context.Context, client *kubernetes.Clientset, kindLow
 }
 
 // ApplyYAML accepts a YAML (or JSON) manifest for an existing resource and applies it via SSA.
-func ApplyYAML(store *sessions.CookieStore) http.HandlerFunc {
+func ApplyYAML(store sessions.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		client, err := getK8sClient(r, store)
 		if err != nil {

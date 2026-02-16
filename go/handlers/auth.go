@@ -31,7 +31,7 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 // Login handles authentication and stores credentials in session
-func Login(store *sessions.CookieStore) http.HandlerFunc {
+func Login(store sessions.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req LoginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -115,7 +115,7 @@ func Login(store *sessions.CookieStore) http.HandlerFunc {
 }
 
 // Logout clears the session
-func Logout(store *sessions.CookieStore) http.HandlerFunc {
+func Logout(store sessions.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		session, _ := store.Get(r, "k8s-session")
 		session.Values["authenticated"] = false
@@ -131,7 +131,7 @@ func Logout(store *sessions.CookieStore) http.HandlerFunc {
 }
 
 // CheckAuth verifies if the user is authenticated
-func CheckAuth(store *sessions.CookieStore) http.HandlerFunc {
+func CheckAuth(store sessions.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		session, _ := store.Get(r, "k8s-session")
 
@@ -147,7 +147,7 @@ func CheckAuth(store *sessions.CookieStore) http.HandlerFunc {
 }
 
 // AuthMiddleware protects routes requiring authentication
-func AuthMiddleware(store *sessions.CookieStore) func(http.Handler) http.Handler {
+func AuthMiddleware(store sessions.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			session, err := store.Get(r, "k8s-session")

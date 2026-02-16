@@ -19,7 +19,7 @@ type PodEvent struct {
 }
 
 // WatchPods streams pod changes across all namespaces
-func WatchPods(store *sessions.CookieStore) http.HandlerFunc {
+func WatchPods(store sessions.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		client, err := getK8sClient(r, store)
 		if err != nil {

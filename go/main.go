@@ -12,7 +12,8 @@ import (
 	"github.com/silasschroeder/licht/go/handlers"
 )
 
-var store = sessions.NewCookieStore([]byte("super-secret-key"))
+// Use FilesystemStore to handle large session data (like certificates)
+var store = sessions.NewFilesystemStore("./sessions", []byte("super-secret-key"))
 
 // Middleware: recover panics -> 500 JSON
 func recovery(next http.Handler) http.Handler {
@@ -61,10 +62,17 @@ func cors(next http.Handler) http.Handler {
 }
 
 func main() {
+	// Ensure sessions directory exists
+	if err := os.MkdirAll("./sessions", 0700); err != nil {
+		log.Fatal("Failed to create sessions directory:", err)
+	}
+
 	store.Options.Path = "/"
 	store.Options.HttpOnly = true
 	store.Options.MaxAge = 3600 * 8
 	store.Options.SameSite = http.SameSiteLaxMode
+	// Workaround: secure cookies often require HTTPS. For localhost dev, false is safer unless using https://
+	store.Options.Secure = false
 
 	r := mux.NewRouter()
 

@@ -169,7 +169,7 @@ export default function Dashboard() {
       console.log(
         "Successfully loaded",
         (dataMap.namespaces || []).length,
-        "namespaces"
+        "namespaces",
       );
       console.log("Loaded deployments:", (dataMap.deployments || []).length);
       console.log("Loaded services:", (dataMap.services || []).length);
@@ -197,7 +197,7 @@ export default function Dashboard() {
   // Helper function to get pods for a specific namespace
   const getPodsForNamespace = (namespace) => {
     return (resourceData.pods || []).filter(
-      (pod) => pod.namespace === namespace
+      (pod) => pod.namespace === namespace,
     );
   };
 
@@ -328,7 +328,9 @@ export default function Dashboard() {
                     >
                       {columns.map(([k]) => {
                         const value =
-                          k === "age" ? formatAge(row.createdAt) : row[k] ?? "";
+                          k === "age"
+                            ? formatAge(row.createdAt)
+                            : (row[k] ?? "");
                         return <td key={k}>{String(value)}</td>;
                       })}
                       <td>
@@ -483,7 +485,7 @@ export default function Dashboard() {
               </div>
               <div className={styles.podTooltipArrow}></div>
             </div>,
-            document.body
+            document.body,
           )}
       </div>
     );
@@ -535,11 +537,11 @@ export default function Dashboard() {
         const ready =
           (o.status?.containerStatuses || []).reduce(
             (n, cs) => n + (cs.ready ? 1 : 0),
-            0
+            0,
           ) +
           (o.status?.initContainerStatuses || []).reduce(
             (n, cs) => n + (cs.ready ? 1 : 0),
-            0
+            0,
           );
         const item = {
           name: o.metadata?.name || "",
@@ -548,7 +550,7 @@ export default function Dashboard() {
           status: o.status?.phase || "Unknown",
           restart: (o.status?.containerStatuses || []).reduce(
             (n, cs) => n + (cs.restartCount || 0),
-            0
+            0,
           ),
           age: "",
           ip: o.status?.podIP || "",
@@ -572,7 +574,7 @@ export default function Dashboard() {
             (p) =>
               `${p.port}${p.nodePort ? `:${p.nodePort}` : ""}/${
                 p.protocol || "TCP"
-              }`
+              }`,
           )
           .join(", ");
         const item = {
@@ -877,7 +879,7 @@ export default function Dashboard() {
                       const name =
                         typeof ns === "string" ? ns : ns.name || ns.Name;
                       return [name, ns];
-                    })
+                    }),
                   ).values(),
                 ].map((ns) => {
                   const nsName =
@@ -905,7 +907,7 @@ export default function Dashboard() {
                       style={{ width: `${cardWidth}px` }}
                       onClick={() =>
                         setSelectedNamespace(
-                          selectedNamespace === nsName ? null : nsName
+                          selectedNamespace === nsName ? null : nsName,
                         )
                       }
                     >
@@ -922,7 +924,7 @@ export default function Dashboard() {
                         {podCount > 0 ? (
                           namespacePods.map((pod, idx) => (
                             <div
-                              key={pod.name + idx}
+                              key={pod.uid || pod.name + idx}
                               className={styles.miniPodClickWrap}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -962,7 +964,7 @@ export default function Dashboard() {
                                 // Scroll target row after table re-renders
                                 setTimeout(() => {
                                   const rowEl = document.querySelector(
-                                    `[data-pod-row="${pod.namespace}/${pod.name}"]`
+                                    `[data-pod-row="${pod.namespace}/${pod.name}"]`,
                                   );
                                   if (rowEl) {
                                     rowEl.scrollIntoView({

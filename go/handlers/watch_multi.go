@@ -20,8 +20,8 @@ type MultiEvent struct {
 	Err    string      `json:"err,omitempty"`
 }
 
-// WatchAll streams multiple Kubernetes resource events via SSE
-func WatchAll(store *sessions.CookieStore) http.HandlerFunc {
+// WatchAll streams changes for multiple resources
+func WatchAll(store sessions.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		client, err := getK8sClient(r, store)

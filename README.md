@@ -151,3 +151,8 @@ This project is open source. Please check the repository for license details.
 - [Go Documentation](https://go.dev/doc/code) - For Go setup and development
 - [Kubernetes Client Access](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/) - For client-go setup
 - [Next.js Documentation](https://nextjs.org/docs) - For frontend development
+
+
+```sh
+kubectl config view --raw --minify
+```
