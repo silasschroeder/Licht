@@ -1,158 +1,196 @@
 # Licht
 
-A modern, web-based frontend for your Kubernetes cluster. Licht provides an intuitive dashboard to visualize and monitor your Kubernetes resources in real-time.
+A modern, real-time Kubernetes dashboard with an intuitive visual interface.
 
-> **Current Status**: Licht is currently in **read-only mode**, providing comprehensive visualization and monitoring of your Kubernetes cluster. The goal is to expand Licht to support full cluster interaction capabilities, including resource management, editing, and deployment operations.
+![Licht Dashboard](https://img.shields.io/badge/version-1.0-blue)
+![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## 🏗️ Architecture
+## Overview
 
-Licht consists of two main components:
+Licht ("light" in German) is a lightweight Kubernetes dashboard that provides real-time visibility into your cluster resources. It features a unique namespace visualization with pod status squares, an interactive topology graph, and a clean modern UI.
 
-- **Go Backend** (`/go`): RESTful API server that communicates with the Kubernetes API
-- **Next.js Frontend** (`/frontend`): Modern React-based web dashboard
+### Key Features
+
+- **Real-time Updates**: Live resource monitoring via Server-Sent Events (SSE)
+- **Namespace Visualization**: Interactive namespace cards with pod status squares
+- **Resource Topology**: Force-directed graph showing relationships between Pods, Deployments, and Services
+- **Multiple View Modes**: Switch between Grid, Table, and Topology views
+- **Quick Search**: Cmd+K spotlight search across all resources
+- **Resource Details**: Slide-in drawer with YAML viewer and resource overview
+- **Secure Authentication**: Certificate or token-based Kubernetes authentication
+
+## Architecture
 
 ```
-┌─────────────────┐    HTTP/SSE     ┌─────────────────┐    Kubernetes    ┌─────────────────┐
-│   Next.js       │ ◄─────────────► │   Go Backend    │ ◄──────────────► │   K8s Cluster   │
-│   Frontend      │                 │   (API Server)  │                  │                 │
-│   (Port 3000)   │                 │   (Port 8080)   │                  │                 │
-└─────────────────┘                 └─────────────────┘                  └─────────────────┘
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Next.js       │     │   Go API        │     │   Kubernetes    │
+│   Frontend      │◄───►│   Server        │◄───►│   API Server    │
+│   (Port 3000)   │     │   (Port 8080)   │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
-## ✨ Current Features (Read-Only)
+- **Frontend**: Next.js 15 with React 19, Framer Motion animations, CSS Modules
+- **Backend**: Go with Gorilla Mux, session-based auth, Kubernetes client-go
+- **Communication**: REST API + SSE for real-time streaming
 
-- 🔐 **Secure Authentication**: Certificate and token-based Kubernetes authentication
-- 📊 **Resource Dashboard**: View pods, nodes, services, deployments, and more
-- 🔄 **Real-time Updates**: Server-Sent Events (SSE) for live cluster monitoring
-- 🎯 **Namespace Filtering**: Focus on specific namespaces
-- 🎨 **Visual Pod Status**: Color-coded pod states (Running, Pending, Failed, etc.)
-- 📱 **Responsive Design**: Works seamlessly on desktop and mobile devices
+## Getting Started
 
-### Supported Kubernetes Resources
+### Prerequisites
 
-- Pods
-- Nodes
-- Namespaces
-- Services
-- Deployments
-- ReplicaSets
-- StatefulSets
-- DaemonSets
-- Jobs
-- CronJobs
-
-## 🚀 Future Roadmap
-
-Licht aims to evolve from a read-only dashboard to a full-featured Kubernetes management platform:
-
-- ⚡ **Resource Management**: Create, update, and delete Kubernetes resources
-- 📝 **YAML Editor**: In-browser editing of resource configurations
-- 🚀 **Application Deployment**: Streamlined deployment workflows
-- 📈 **Advanced Monitoring**: Metrics integration and alerting
-- 🔧 **Cluster Operations**: Node management and cluster maintenance tools
-- 👥 **Multi-user Support**: Role-based access control
-
-## 🛠️ Tech Stack
-
-**Backend:**
-
-- Go 1.25+
-- Gorilla Mux (HTTP router)
-- Kubernetes client-go library
-- Server-Sent Events for real-time updates
-
-**Frontend:**
-
-- Next.js 15.5+
-- React 19.1+
-- Turbopack for fast builds
-- CSS Modules for styling
-
-## 📋 Prerequisites
-
-- Go 1.25 or later
-- Node.js 18+ and npm
+- Go 1.21+
+- Node.js 18+
 - Access to a Kubernetes cluster
-- Valid Kubernetes credentials (certificate or token)
+- Valid kubeconfig or service account credentials
 
-## 🏃‍♂️ Quick Start
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/silasschroeder/Licht.git
-cd Licht
-```
-
-### 2. Setup Backend
+### Backend Setup
 
 ```bash
 cd go
-go mod tidy
+
+# Copy environment template
+cp .env.example .env
+
+# Configure your environment
+# Edit .env with your settings:
+# - SESSION_SECRET_KEY (min 32 chars)
+# - ALLOWED_CORS_ORIGINS
+# - TLS_INSECURE_SKIP_VERIFY (true for local dev)
+
+# Run the server
 go run main.go
 ```
 
-The API server will start on `http://localhost:8080`
-
-### 3. Setup Frontend
+### Frontend Setup
 
 ```bash
 cd frontend
+
+# Install dependencies
 npm install
+
+# Start development server
 npm run dev
 ```
 
-The web interface will be available at `http://localhost:3000`
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 4. Configure Kubernetes Access
+### Authentication
 
-Ensure you have access to your Kubernetes cluster. For K3s users:
+Licht supports two authentication methods:
 
-```bash
-# View your kubeconfig
-cat /etc/rancher/k3s/k3s.yaml
+1. **Client Certificate**: Provide base64-encoded client certificate and key
+2. **Bearer Token**: Provide a Kubernetes service account token
 
-# Or copy it to the standard location
-sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-sudo chown $USER:$USER ~/.kube/config
+## Project Structure
+
+```
+licht/
+├── go/                     # Go backend
+│   ├── config/             # Environment configuration
+│   ├── handlers/           # HTTP handlers (factory pattern)
+│   │   ├── auth.go         # Authentication endpoints
+│   │   ├── factory.go      # Generic handler factory
+│   │   ├── fetchers.go     # K8s resource fetchers
+│   │   ├── watch_multi.go  # SSE multi-resource streaming
+│   │   └── yaml.go         # YAML operations
+│   └── main.go             # Router setup
+│
+├── frontend/               # Next.js frontend
+│   ├── app/                # Next.js app router
+│   │   ├── page.tsx        # Main dashboard
+│   │   └── login/          # Login page
+│   ├── components/         # React components
+│   │   ├── NamespaceCanvas/    # Namespace visualization
+│   │   ├── ResourceExplorer/   # Grid/Table/Topology views
+│   │   ├── ResourceDrawer/     # Detail slide-in panel
+│   │   └── QuickFilter/        # Cmd+K search
+│   ├── hooks/              # Custom React hooks
+│   ├── lib/                # Utilities & animations
+│   ├── styles/             # Design tokens
+│   └── types/              # TypeScript definitions
 ```
 
-For other Kubernetes distributions, follow the [official client-go setup documentation](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/).
+## Supported Resources
 
-## 🔧 Development
+| Resource | List | Watch | YAML View |
+|----------|------|-------|-----------|
+| Pods | ✓ | ✓ | ✓ |
+| Deployments | ✓ | ✓ | ✓ |
+| Services | ✓ | ✓ | ✓ |
+| ReplicaSets | ✓ | ✓ | ✓ |
+| StatefulSets | ✓ | ✓ | ✓ |
+| DaemonSets | ✓ | ✓ | ✓ |
+| Jobs | ✓ | ✓ | ✓ |
+| CronJobs | ✓ | ✓ | ✓ |
+| Namespaces | ✓ | ✓ | - |
+| Nodes | ✓ | ✓ | - |
 
-### Backend Development
+## Configuration
+
+### Backend Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SESSION_SECRET_KEY` | Secret for session encryption (min 32 chars) | Yes |
+| `ALLOWED_CORS_ORIGINS` | Comma-separated allowed origins | Yes |
+| `TLS_INSECURE_SKIP_VERIFY` | Skip TLS verification (dev only) | No |
+| `CA_CERT_PATH` | Path to custom CA certificate | No |
+
+### Frontend Configuration
+
+The frontend proxies API requests to the backend via Next.js rewrites configured in `next.config.mjs`.
+
+## Development
+
+### Running Tests
 
 ```bash
+# Backend tests
 cd go
-go mod tidy
-go run main.go
+go test ./handlers -v
+
+# Frontend tests
+cd frontend
+npm test
 ```
 
-### Frontend Development
+### Building for Production
 
 ```bash
+# Backend
+cd go
+go build -o licht
+
+# Frontend
 cd frontend
-npm run dev
+npm run build
+npm start
 ```
 
-The frontend uses Turbopack for fast development builds and hot reloading.
+## Security Considerations
 
-## 🤝 Contributing
+- Sessions are stored on the filesystem in `./sessions/` with 0700 permissions
+- TLS verification is enabled by default in production
+- CORS origins must be explicitly configured
+- Credentials are never logged or exposed in responses
 
-Licht is under active development. Contributions are welcome as we work towards making it a comprehensive Kubernetes management platform.
+## Contributing
 
-## 📄 License
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-This project is open source. Please check the repository for license details.
+## License
 
-## 🔗 References
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- [Go Documentation](https://go.dev/doc/code) - For Go setup and development
-- [Kubernetes Client Access](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/) - For client-go setup
-- [Next.js Documentation](https://nextjs.org/docs) - For frontend development
+## Acknowledgments
 
-
-```sh
-kubectl config view --raw --minify
-```
+- Built with [Next.js](https://nextjs.org/)
+- Backend powered by [Go](https://golang.org/)
+- Kubernetes client via [client-go](https://github.com/kubernetes/client-go)
+- Animations by [Framer Motion](https://www.framer.com/motion/)

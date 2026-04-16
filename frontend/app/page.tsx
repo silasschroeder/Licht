@@ -1,137 +1,27 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import AuthCheck from "../components/AuthCheck";
 import ResourceTable from "../components/ResourceTable";
 import ResourceTabs from "../components/ResourceTabs";
-import YamlViewer from "../components/YamlViewer";
+import { NamespaceCanvas } from "../components/NamespaceCanvas";
+import { ResourceExplorer, TopologySection } from "../components/ResourceExplorer";
+import { QuickFilter } from "../components/QuickFilter";
+import { ResourceDrawer } from "../components/ResourceDrawer";
 import { useKubernetesData } from "../hooks/useKubernetesData";
 import { Pod, ResourceType } from "@/types/kubernetes";
 import styles from "./page.module.css";
 
 const API_BASE = "";
 
-const statusColors = {
-  Running: "#4caf50",
-  Pending: "#ff9800",
-  Succeeded: "#2196f3",
-  Failed: "#f44336",
-  Unknown: "#9e9e9e",
-};
-
-// Namespace grid layout constants
-const POD_SIZE = 40;
-const POD_GAP = 5;
-const H_PADDING = 28;
-const BASE_COLUMNS = 4;
-const BASE_ROWS = 3;
-const BASE_GRID_HEIGHT = BASE_ROWS * POD_SIZE + (BASE_ROWS - 1) * POD_GAP;
-
-function calcWidthForColumns(cols: number): number {
-  return cols * POD_SIZE + (cols - 1) * POD_GAP + H_PADDING;
-}
-
-function computeVisibleColumns(podCount: number): number {
-  if (podCount <= 0) return 1;
-  if (podCount <= BASE_COLUMNS) return podCount;
-  if (podCount <= 12) return BASE_COLUMNS;
-  return Math.ceil(podCount / 3);
-}
-
-interface EnhancedPodSquareProps {
-  pod: Pod;
-  color: string;
-  formatAge: (createdAt: string | null | undefined) => string;
-}
-
-function EnhancedPodSquare({ pod, color, formatAge }: EnhancedPodSquareProps) {
-  const [showTooltip, setShowTooltip] = useState(false);
-  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({});
-  const [capturedPod, setCapturedPod] = useState<Pod | null>(null);
-  const podRef = useRef<HTMLDivElement>(null);
-
-  const handleMouseEnter = () => {
-    if (podRef.current) {
-      const rect = podRef.current.getBoundingClientRect();
-      const tooltipWidth = 250;
-
-      setCapturedPod({ ...pod });
-
-      let left: number, arrowLeft: number;
-      const screenWidth = window.innerWidth;
-      const podCenter = rect.left + rect.width / 2;
-
-      if (podCenter - tooltipWidth / 2 < 10) {
-        left = 10;
-        arrowLeft = podCenter - left;
-      } else if (podCenter + tooltipWidth / 2 > screenWidth - 10) {
-        left = screenWidth - tooltipWidth - 10;
-        arrowLeft = podCenter - left;
-      } else {
-        left = podCenter - tooltipWidth / 2;
-        arrowLeft = tooltipWidth / 2;
-      }
-
-      setTooltipStyle({
-        top: rect.top - 10 + "px",
-        left: left + "px",
-        width: tooltipWidth + "px",
-        transform: "translateY(-100%)",
-        ["--arrow-left" as any]: arrowLeft + "px",
-      });
-
-      setShowTooltip(true);
-    }
-  };
-
-  return (
-    <div
-      ref={podRef}
-      className={styles.miniPod}
-      style={{ backgroundColor: color }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setShowTooltip(false)}
-    >
-      {showTooltip &&
-        capturedPod &&
-        createPortal(
-          <div className={styles.podTooltip} style={tooltipStyle}>
-            <div className={styles.podTooltipLine}>
-              <strong>Name:</strong> {capturedPod.name}
-            </div>
-            <div className={styles.podTooltipLine}>
-              <strong>Status:</strong> {capturedPod.status}
-            </div>
-            <div className={styles.podTooltipLine}>
-              <strong>Ready:</strong> {capturedPod.ready}
-            </div>
-            {capturedPod.ip && (
-              <div className={styles.podTooltipLine}>
-                <strong>IP:</strong> {capturedPod.ip}
-              </div>
-            )}
-            {capturedPod.node && (
-              <div className={styles.podTooltipLine}>
-                <strong>Node:</strong> {capturedPod.node}
-              </div>
-            )}
-            {capturedPod.restart > 0 && (
-              <div className={styles.podTooltipLine}>
-                <strong>Restarts:</strong> {capturedPod.restart}
-              </div>
-            )}
-            <div className={styles.podTooltipLine}>
-              <strong>Age:</strong> {formatAge(capturedPod.createdAt)}
-            </div>
-            <div className={styles.podTooltipArrow}></div>
-          </div>,
-          document.body
-        )}
-    </div>
-  );
-}
+// Logo icon component - matches login page
+const LichtLogoIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+  </svg>
+);
 
 export default function Dashboard() {
   const router = useRouter();
@@ -141,12 +31,13 @@ export default function Dashboard() {
   );
   const [resourceType, setResourceType] = useState<ResourceType>("pods");
   const [yamlOpen, setYamlOpen] = useState(false);
-  const [yamlTarget, setYamlTarget] = useState<{
+  const [drawerTarget, setDrawerTarget] = useState<{
     kind: string;
     namespace: string | null;
     name: string;
   } | null>(null);
   const [highlightPodKey, setHighlightPodKey] = useState<string | null>(null);
+  const [quickFilterOpen, setQuickFilterOpen] = useState(false);
   const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Age timer
@@ -211,21 +102,58 @@ export default function Dashboard() {
     fetchData,
   } = useKubernetesData(authReady);
 
-  function getPodsForNamespace(namespace: string): Pod[] {
-    return (resourceData.pods || []).filter(
-      (pod) => pod.namespace === namespace
-    );
-  }
+  // Handle pod selection from NamespaceCanvas
+  const handlePodSelect = useCallback((pod: Pod) => {
+    setResourceType("pods");
+    setSelectedNamespace(pod.namespace);
 
-  function triggerPodHighlight(ns: string, name: string) {
-    const key = `${ns}/${name}`;
+    // Trigger highlight
+    const key = `${pod.namespace}/${pod.name}`;
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     setHighlightPodKey(key);
     highlightTimerRef.current = setTimeout(() => {
       setHighlightPodKey(null);
       highlightTimerRef.current = null;
     }, 2000);
-  }
+
+    // Scroll to row
+    setTimeout(() => {
+      const rowEl = document.querySelector(
+        `[data-pod-row="${pod.namespace}/${pod.name}"]`
+      );
+      if (rowEl) {
+        rowEl.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    }, 140);
+  }, []);
+
+  // Keyboard shortcut for quick filter (Cmd+K / Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setQuickFilterOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Handle resource selection from QuickFilter
+  const handleQuickFilterSelect = useCallback(
+    (type: ResourceType, name: string, namespace: string | null) => {
+      setResourceType(type);
+      if (namespace) {
+        setSelectedNamespace(namespace);
+      }
+      // Could also trigger highlight here if needed
+    },
+    []
+  );
 
   function handleLogout() {
     fetch(`${API_BASE}/api/auth/logout`, {
@@ -252,19 +180,39 @@ export default function Dashboard() {
         <main className={styles.main}>
           <div className={styles.centerShell}>
             <div className={styles.centerContent}>
-              <header>
-                <h1 className={styles.pageTitle}>Licht</h1>
-                <div className={styles.clusterLine}>
-                  <span className={styles.clusterHost}>
-                    {clusterAddress || "Cluster unbekannt"}
-                  </span>
+              <header className={styles.header}>
+                <div className={styles.branding}>
+                  <div className={styles.logoIcon}>
+                    <LichtLogoIcon />
+                  </div>
+                  <h1 className={styles.pageTitle}>Licht</h1>
+                  <span className={styles.tagline}>Kubernetes Dashboard</span>
+                </div>
+                <div className={styles.headerActions}>
                   <button
-                    className={styles.logoutButton}
-                    onClick={handleLogout}
-                    aria-label="Logout"
+                    className={styles.searchButton}
+                    onClick={() => setQuickFilterOpen(true)}
+                    aria-label="Search resources"
                   >
-                    Logout
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <span>Search</span>
+                    <kbd className={styles.kbd}>K</kbd>
                   </button>
+                  <div className={styles.clusterInfo}>
+                    <span className={styles.clusterHost}>
+                      {clusterAddress || "Cluster unbekannt"}
+                    </span>
+                    <button
+                      className={styles.logoutButton}
+                      onClick={handleLogout}
+                      aria-label="Logout"
+                    >
+                      Logout
+                    </button>
+                  </div>
                 </div>
               </header>
 
@@ -273,150 +221,14 @@ export default function Dashboard() {
                   Namespaces
                 </h2>
 
-                <nav
-                  className={styles.namespaceGrid}
-                  aria-label="Namespace selection"
-                >
-                  {[
-                    ...new Map(
-                      (namespaces || []).map((ns) => {
-                        const name =
-                          typeof ns === "string" ? ns : ns.name || ns.Name;
-                        return [name, ns];
-                      })
-                    ).values(),
-                  ].map((ns) => {
-                    const nsName =
-                      typeof ns === "string" ? ns : (ns.name || ns.Name || "");
-                    const namespacePods = getPodsForNamespace(nsName);
-                    const podCount = namespacePods.length;
-
-                    const visibleColumns = computeVisibleColumns(podCount);
-                    const widthColumns =
-                      podCount <= 12 ? BASE_COLUMNS : visibleColumns;
-                    const cardWidth = calcWidthForColumns(widthColumns);
-
-                    return (
-                      <div
-                        key={nsName}
-                        className={`${styles.namespaceSquare} ${
-                          nsName === selectedNamespace
-                            ? styles.selectedSquare
-                            : ""
-                        }`}
-                        style={{ width: `${cardWidth}px` }}
-                        onClick={() =>
-                          setSelectedNamespace(
-                            selectedNamespace === nsName ? null : nsName
-                          )
-                        }
-                        role="button"
-                        tabIndex={0}
-                        aria-pressed={nsName === selectedNamespace}
-                        aria-label={`Namespace ${nsName} with ${podCount} pods`}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setSelectedNamespace(
-                              selectedNamespace === nsName ? null : nsName
-                            );
-                          }
-                        }}
-                      >
-                        <div
-                          className={styles.miniPodPreview}
-                          style={{
-                            gridTemplateColumns: `repeat(${visibleColumns}, ${POD_SIZE}px)`,
-                            gridAutoRows: `${POD_SIZE}px`,
-                            gap: `${POD_GAP}px`,
-                            height:
-                              podCount <= 12
-                                ? `${BASE_GRID_HEIGHT}px`
-                                : "auto",
-                          }}
-                        >
-                          {podCount > 0 ? (
-                            namespacePods.map((pod, idx) => (
-                              <div
-                                key={pod.uid || pod.name + idx}
-                                className={styles.miniPodClickWrap}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const el = e.currentTarget;
-                                  const text = pod.name;
-                                  if (navigator.clipboard?.writeText) {
-                                    navigator.clipboard
-                                      .writeText(text)
-                                      .catch(() => {});
-                                  } else {
-                                    const ta = document.createElement("textarea");
-                                    ta.value = text;
-                                    ta.style.position = "fixed";
-                                    ta.style.opacity = "0";
-                                    document.body.appendChild(ta);
-                                    ta.select();
-                                    try {
-                                      document.execCommand("copy");
-                                    } catch {}
-                                    document.body.removeChild(ta);
-                                  }
-                                  setResourceType("pods");
-                                  setSelectedNamespace(pod.namespace);
-                                  triggerPodHighlight(pod.namespace, pod.name);
-
-                                  if (el) {
-                                    el.classList.add(styles.copiedFlash);
-                                    setTimeout(() => {
-                                      if (el)
-                                        el.classList.remove(styles.copiedFlash);
-                                    }, 350);
-                                  }
-
-                                  setTimeout(() => {
-                                    const rowEl = document.querySelector(
-                                      `[data-pod-row="${pod.namespace}/${pod.name}"]`
-                                    );
-                                    if (rowEl) {
-                                      rowEl.scrollIntoView({
-                                        behavior: "smooth",
-                                        block: "center",
-                                      });
-                                    }
-                                  }, 140);
-                                }}
-                                role="button"
-                                tabIndex={0}
-                                aria-label={`Pod ${pod.name}, status ${pod.status}`}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" || e.key === " ") {
-                                    e.preventDefault();
-                                    e.currentTarget.click();
-                                  }
-                                }}
-                              >
-                                <EnhancedPodSquare
-                                  pod={pod}
-                                  color={
-                                    statusColors[
-                                      pod.status as keyof typeof statusColors
-                                    ] || statusColors.Unknown
-                                  }
-                                  formatAge={formatAge}
-                                />
-                              </div>
-                            ))
-                          ) : (
-                            <div className={styles.emptyNamespaceIndicator}>
-                              No Pods
-                            </div>
-                          )}
-                        </div>
-                        <div className={styles.namespaceName}>{nsName}</div>
-                        <div className={styles.podCount}>{podCount} pods</div>
-                      </div>
-                    );
-                  })}
-                </nav>
+                <NamespaceCanvas
+                  namespaces={namespaces || []}
+                  pods={resourceData.pods || []}
+                  selectedNamespace={selectedNamespace}
+                  onNamespaceSelect={setSelectedNamespace}
+                  onPodSelect={handlePodSelect}
+                  formatAge={formatAge}
+                />
               </section>
 
               <section aria-labelledby="content-heading">
@@ -428,31 +240,66 @@ export default function Dashboard() {
                   activeType={resourceType}
                   onTabChange={setResourceType}
                 />
-                <ResourceTable
-                  type={resourceType}
+
+                <ResourceExplorer
+                  resourceType={resourceType}
+                  resourceData={resourceData}
                   namespace={selectedNamespace}
-                  data={resourceData[resourceType]}
-                  highlightPodKey={highlightPodKey}
-                  formatAge={formatAge}
                   onYamlClick={(kind, namespace, name) => {
-                    setYamlTarget({ kind, namespace, name });
+                    setDrawerTarget({ kind, namespace, name });
                     setYamlOpen(true);
                   }}
+                  formatAge={formatAge}
+                  renderTable={() => (
+                    <ResourceTable
+                      type={resourceType}
+                      namespace={selectedNamespace}
+                      data={resourceData[resourceType]}
+                      highlightPodKey={highlightPodKey}
+                      formatAge={formatAge}
+                      onYamlClick={(kind, namespace, name) => {
+                        setDrawerTarget({ kind, namespace, name });
+                        setYamlOpen(true);
+                      }}
+                    />
+                  )}
                 />
               </section>
+
+              <TopologySection
+                resourceData={resourceData}
+                selectedNamespace={selectedNamespace}
+                onResourceClick={(type, name, namespace) => {
+                  setResourceType(type);
+                  if (namespace) {
+                    setSelectedNamespace(namespace);
+                  }
+                  // Optionally open drawer for clicked resource
+                  setDrawerTarget({ kind: type, namespace, name });
+                  setYamlOpen(true);
+                }}
+              />
             </div>
           </div>
         </main>
 
-        {yamlTarget && (
-          <YamlViewer
-            kind={yamlTarget.kind}
-            namespace={yamlTarget.namespace}
-            name={yamlTarget.name}
-            open={yamlOpen}
-            onClose={() => setYamlOpen(false)}
-          />
-        )}
+        <ResourceDrawer
+          isOpen={yamlOpen}
+          onClose={() => setYamlOpen(false)}
+          kind={drawerTarget?.kind || ""}
+          name={drawerTarget?.name || ""}
+          namespace={drawerTarget?.namespace || null}
+          resourceData={resourceData}
+          formatAge={formatAge}
+        />
+
+        <QuickFilter
+          isOpen={quickFilterOpen}
+          onClose={() => setQuickFilterOpen(false)}
+          resourceData={resourceData}
+          onSelectResource={handleQuickFilterSelect}
+          onFilterChange={() => {}}
+        />
       </AuthCheck>
     </div>
   );

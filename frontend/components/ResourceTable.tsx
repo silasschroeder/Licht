@@ -168,7 +168,7 @@ export default function ResourceTable({
                         }}
                         aria-label={`View YAML for ${row.name}`}
                       >
-                        YAML
+                        Interact
                       </button>
                     </td>
                   </tr>

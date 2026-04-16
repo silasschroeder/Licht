@@ -1,3 +1,6 @@
+/* Import design tokens */
+@import "../styles/tokens.css";
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -6,10 +9,11 @@
 
 body,
 html {
-  font-family: "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans",
-    "Helvetica Neue", sans-serif;
-  color: #333;
-  background-color: #f9f9f9;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background-color: var(--surface-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 input,
