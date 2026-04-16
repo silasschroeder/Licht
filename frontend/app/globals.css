@@ -1,0 +1,108 @@
+/* Import design tokens */
+@import "../styles/tokens.css";
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body,
+html {
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background-color: var(--surface-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+input,
+textarea,
+button,
+select {
+  font-family: inherit;
+}
+
+/* PrismJS syntax highlighting (light, blends with modalPre) */
+pre[class*="language-"],
+code[class*="language-"] {
+  color: #22323d;
+  background: transparent;
+  text-shadow: none;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  tab-size: 2;
+  hyphens: none;
+}
+
+/* Tokens */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #8aa0b1;
+}
+
+.token.punctuation {
+  color: #6b7a85;
+}
+
+.token.key {
+  color: #0f4c81;
+  font-weight: 600;
+}
+
+.token.property,
+.token.tag,
+.token.number,
+.token.boolean,
+.token.constant,
+.token.symbol {
+  color: #b07515;
+}
+
+.token.string,
+.token.char,
+.token.attr-value {
+  color: #0b6e2e;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #3b556a;
+}
+
+.token.atrule,
+.token.rule,
+.token.selector {
+  color: #7c3aed;
+}
+
+.token.important,
+.token.bold {
+  font-weight: 700;
+}
+.token.italic {
+  font-style: italic;
+}
+
+.token.inserted {
+  color: #0f766e;
+}
+.token.deleted {
+  color: #b91c1c;
+}
+
+/* Line highlight/selection stays readable on light modal background */
+pre[class*="language-"]::selection,
+code[class*="language-"]::selection,
+pre[class*="language-"] ::selection,
+code[class*="language-"] ::selection {
+  background: rgba(0, 0, 0, 0.08);
+}

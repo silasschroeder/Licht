@@ -1,0 +1,364 @@
+/* Topology View Styles */
+
+/* Section container for always-visible topology */
+.sectionContainer {
+  margin-top: var(--space-6, 24px);
+  padding-top: var(--space-6, 24px);
+  border-top: 1px solid var(--surface-border, rgba(0, 0, 0, 0.08));
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3, 12px);
+  margin-bottom: var(--space-4, 16px);
+  justify-content: center;
+}
+
+.sectionTitle {
+  font-size: var(--text-xl, 1.25rem);
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  margin: 0;
+}
+
+.sectionSubtitle {
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--text-tertiary, #94a3b8);
+}
+
+.topologyWrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1; /* Square aspect ratio */
+  min-height: 600px;
+  max-height: 1200px;
+  background: var(--surface-card, rgba(255, 255, 255, 0.9));
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
+  isolation: isolate; /* Create stacking context to contain children */
+}
+
+.emptyTopology {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-tertiary, #94a3b8);
+  font-size: var(--text-sm, 0.875rem);
+  background: var(--surface-card, rgba(255, 255, 255, 0.9));
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-lg, 16px);
+}
+
+.container {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    var(--surface-bg) 0%,
+    var(--surface-card) 100%
+  );
+}
+
+.canvas {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.canvas:active {
+  cursor: grabbing;
+}
+
+/* Grid pattern background - contained within topologyWrapper */
+.gridPattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--surface-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--surface-border) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.5;
+  z-index: 0;
+  border-radius: inherit; /* Respect parent's border-radius */
+}
+
+/* Edges/connections - bright and visible */
+.edge {
+  fill: none;
+  stroke: var(--color-primary-300, #93c5fd);
+  stroke-width: 2;
+  opacity: 0.7;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.edgeHighlighted {
+  stroke: var(--color-primary-500, #3b82f6);
+  stroke-width: 3;
+  opacity: 1;
+}
+
+.edgeDimmed {
+  opacity: 0.25;
+}
+
+/* Animated flow on edges */
+.edgeFlow {
+  stroke-dasharray: 8 4;
+  animation: edgeFlow 1s linear infinite;
+}
+
+@keyframes edgeFlow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+/* Nodes */
+.node {
+  cursor: pointer;
+}
+
+.node:hover .nodeBody {
+  stroke: var(--color-primary-400, #60a5fa);
+  stroke-width: 2;
+}
+
+.nodeDragging {
+  cursor: grabbing;
+  z-index: 100;
+}
+
+.nodeBody {
+  fill: var(--surface-elevated);
+  stroke: var(--surface-border-strong);
+  stroke-width: 1.5;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.nodeHighlighted .nodeBody {
+  stroke: var(--color-primary-400);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 8px var(--color-primary-glow));
+}
+
+.nodeDimmed .nodeBody {
+  opacity: 0.3;
+}
+
+/* Node type shapes */
+.nodePod .nodeBody {
+  rx: 6;
+  ry: 6;
+}
+
+.nodeDeployment .nodeBody {
+  rx: 12;
+  ry: 12;
+}
+
+.nodeService .nodeBody {
+  /* Circle/rounded shape */
+  rx: 50%;
+  ry: 50%;
+}
+
+/* Node status indicator */
+.nodeStatus {
+  transition: fill var(--duration-fast) var(--ease-out);
+}
+
+.nodeStatusRunning {
+  fill: var(--status-running);
+}
+
+.nodeStatusPending {
+  fill: var(--status-pending);
+}
+
+.nodeStatusFailed {
+  fill: var(--status-failed);
+}
+
+.nodeStatusSucceeded {
+  fill: var(--status-succeeded);
+}
+
+.nodeStatusUnknown {
+  fill: var(--status-unknown);
+}
+
+/* Node label */
+.nodeLabel {
+  font-size: 11px;
+  font-weight: 500;
+  fill: var(--text-primary);
+  text-anchor: middle;
+  pointer-events: none;
+  user-select: none;
+}
+
+.nodeType {
+  font-size: 9px;
+  font-weight: 600;
+  fill: var(--text-tertiary);
+  text-anchor: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+}
+
+/* Node type label (inside node) */
+.nodeTypeLabel {
+  font-size: 14px;
+  font-weight: 700;
+  fill: var(--text-secondary, #64748b);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Node name label (below node) */
+.nodeNameLabel {
+  font-size: 10px;
+  font-weight: 500;
+  fill: var(--text-primary, #1e293b);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Node tooltip group */
+.nodeTooltipGroup {
+  pointer-events: none;
+}
+
+.nodeTooltipBg {
+  fill: var(--surface-elevated, #ffffff);
+  stroke: var(--surface-border, rgba(0, 0, 0, 0.08));
+  stroke-width: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.nodeTooltipText {
+  font-size: 11px;
+  font-weight: 500;
+  fill: var(--text-primary, #1e293b);
+  pointer-events: none;
+}
+
+/* Controls */
+.controls {
+  position: absolute;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.controlButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-elevated);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.controlButton:hover {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  border-color: var(--surface-border-strong);
+}
+
+.controlButton:active {
+  transform: scale(0.95);
+}
+
+.controlIcon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Legend */
+.legend {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.legendShape {
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--surface-border-strong);
+  background: var(--surface-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary, #64748b);
+}
+
+.legendShapePod {
+  border-radius: 4px;
+}
+
+.legendShapeDeployment {
+  border-radius: 8px;
+}
+
+.legendShapeService {
+  border-radius: 50%;
+}
+
+.legendLabel {
+  color: var(--text-secondary);
+}
+
+/* Selected node info */
+.selectedInfo {
+  position: absolute;
+  bottom: var(--space-4);
+  left: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-elevated);
+  border: 1px solid var(--color-primary-400);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.selectedInfoTitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.selectedInfoMeta {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}

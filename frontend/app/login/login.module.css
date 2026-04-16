@@ -1,0 +1,366 @@
+/* Modern Login Page Styles */
+
+.loginContainer {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(
+    135deg,
+    var(--surface-bg, #f8fafc) 0%,
+    var(--color-primary-50, #eff6ff) 50%,
+    var(--surface-bg, #f8fafc) 100%
+  );
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle animated gradient overlay */
+.loginContainer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 50% at 50% -20%,
+    var(--color-primary-100, #dbeafe) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+  animation: gradientPulse 8s ease-in-out infinite;
+}
+
+@keyframes gradientPulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+/* Grid pattern for tech feel */
+.loginContainer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--color-primary-100, #dbeafe) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-primary-100, #dbeafe) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.loginCard {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface-elevated, #ffffff);
+  border-radius: var(--radius-xl, 24px);
+  padding: 40px 36px;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.04),
+    0 10px 24px rgba(0, 0, 0, 0.08),
+    0 0 0 1px var(--surface-border, rgba(0, 0, 0, 0.05));
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.08));
+}
+
+/* Logo and branding */
+.branding {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.logoIcon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 16px;
+  background: var(--color-primary-gradient, linear-gradient(145deg, #1669e8 0%, #4294ff 100%));
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 4px 12px rgba(22, 105, 232, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+  animation: logoGlow 3s ease-in-out infinite;
+}
+
+@keyframes logoGlow {
+  0%, 100% {
+    box-shadow:
+      0 4px 12px rgba(22, 105, 232, 0.3),
+      0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+  }
+  50% {
+    box-shadow:
+      0 6px 20px rgba(22, 105, 232, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+  }
+}
+
+.logoIcon svg {
+  width: 36px;
+  height: 36px;
+  color: #fff;
+}
+
+.brandName {
+  font-size: 2rem;
+  font-weight: 700;
+  background: var(--color-primary-gradient, linear-gradient(145deg, #1669e8 0%, #4294ff 100%));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+.tagline {
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--text-tertiary, #94a3b8);
+  margin-top: 4px;
+  letter-spacing: 0.3px;
+}
+
+/* Error message */
+.errorMessage {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--status-failed, #ef4444);
+  background: var(--color-red-50, #fef2f2);
+  border: 1px solid var(--color-red-200, #fecaca);
+  padding: 12px 16px;
+  border-radius: var(--radius-md, 12px);
+  margin-bottom: 20px;
+  font-size: var(--text-sm, 0.875rem);
+  line-height: 1.5;
+}
+
+.errorIcon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+/* Form groups */
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.formGroup > label {
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  letter-spacing: 0.2px;
+}
+
+.formGroup input[type="text"],
+.formGroup textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--surface-border-strong, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius-md, 12px);
+  font-family: inherit;
+  font-size: var(--text-base, 1rem);
+  line-height: 1.5;
+  background: var(--surface-bg, #f8fafc);
+  color: var(--text-primary, #1e293b);
+  transition:
+    border-color 0.2s ease-out,
+    box-shadow 0.2s ease-out,
+    background-color 0.2s ease-out;
+}
+
+.formGroup input[type="text"]:hover,
+.formGroup textarea:hover {
+  border-color: var(--color-primary-300, #93c5fd);
+  background: var(--surface-elevated, #ffffff);
+}
+
+.formGroup input[type="text"]:focus,
+.formGroup textarea:focus {
+  outline: none;
+  border-color: var(--color-primary-400, #60a5fa);
+  background: var(--surface-elevated, #ffffff);
+  box-shadow: 0 0 0 3px var(--color-primary-glow, rgba(22, 105, 232, 0.15));
+}
+
+.formGroup textarea {
+  resize: vertical;
+  min-height: 100px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: var(--text-sm, 0.875rem);
+}
+
+/* Auth method toggle */
+.authMethodToggle {
+  display: flex;
+  gap: 8px;
+  background: var(--surface-bg, #f8fafc);
+  padding: 4px;
+  border-radius: var(--radius-lg, 16px);
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.08));
+}
+
+.authMethodButton {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: var(--radius-md, 12px);
+  background: transparent;
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition:
+    background 0.2s ease-out,
+    color 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.authMethodButton:hover:not(.authMethodActive) {
+  background: var(--surface-card, rgba(255, 255, 255, 0.9));
+  color: var(--text-primary, #1e293b);
+}
+
+.authMethodActive {
+  background: var(--surface-elevated, #ffffff);
+  color: var(--color-primary-500, #3b82f6);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+.authMethodIcon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Submit button */
+.loginButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 14px 20px;
+  background: var(--color-primary-gradient, linear-gradient(145deg, #1669e8 0%, #4294ff 100%));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md, 12px);
+  font-size: var(--text-base, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease-out,
+    box-shadow 0.2s ease-out,
+    opacity 0.2s ease-out;
+  box-shadow:
+    0 2px 6px rgba(22, 105, 232, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.loginButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 12px rgba(22, 105, 232, 0.45),
+    0 2px 4px rgba(0, 0, 0, 0.18);
+}
+
+.loginButton:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.loginButton:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px var(--color-primary-glow, rgba(22, 105, 232, 0.25)),
+    0 4px 12px rgba(22, 105, 232, 0.45);
+}
+
+.loginButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.buttonIcon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Loading spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Footer */
+.footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--surface-border, rgba(0, 0, 0, 0.08));
+}
+
+.footerText {
+  font-size: var(--text-xs, 0.75rem);
+  color: var(--text-tertiary, #94a3b8);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footerIcon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 520px) {
+  .loginCard {
+    padding: 28px 24px;
+    border-radius: var(--radius-lg, 16px);
+  }
+
+  .brandName {
+    font-size: 1.75rem;
+  }
+
+  .logoIcon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .authMethodToggle {
+    flex-direction: column;
+  }
+}
