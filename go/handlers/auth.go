@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gorilla/sessions"
+	"github.com/silasschroeder/licht/go/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -31,7 +33,7 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 // Login handles authentication and stores credentials in session
-func Login(store sessions.Store) http.HandlerFunc {
+func Login(store sessions.Store, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req LoginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -58,7 +60,7 @@ func Login(store sessions.Store) http.HandlerFunc {
 			k8sConfig = &rest.Config{
 				Host: req.ServerURL,
 				TLSClientConfig: rest.TLSClientConfig{
-					Insecure: true, // TODO: Make configurable
+					Insecure: cfg.TLSInsecureSkipVerify,
 					CertData: clientCertData,
 					KeyData:  clientKeyData,
 				},
@@ -69,7 +71,7 @@ func Login(store sessions.Store) http.HandlerFunc {
 				Host:        req.ServerURL,
 				BearerToken: strings.TrimSpace(req.Token),
 				TLSClientConfig: rest.TLSClientConfig{
-					Insecure: true, // TODO: Make configurable
+					Insecure: cfg.TLSInsecureSkipVerify,
 				},
 			}
 
@@ -105,7 +107,8 @@ func Login(store sessions.Store) http.HandlerFunc {
 		}
 
 		if err := session.Save(r, w); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to save session")
+			log.Printf("Session save error: %v", err)
+			writeError(w, http.StatusInternalServerError, "Failed to save session: "+err.Error())
 			return
 		}
 
@@ -122,7 +125,8 @@ func Logout(store sessions.Store) http.HandlerFunc {
 		session.Options.MaxAge = -1 // Delete the cookie
 
 		if err := session.Save(r, w); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to save session")
+			log.Printf("Session save error: %v", err)
+			writeError(w, http.StatusInternalServerError, "Failed to save session: "+err.Error())
 			return
 		}
 

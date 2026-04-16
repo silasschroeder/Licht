@@ -10,15 +10,16 @@ import (
 	"strings"
 
 	"github.com/gorilla/sessions"
+	"github.com/silasschroeder/licht/go/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 )
 
-func GetYAML(store sessions.Store) http.HandlerFunc {
+func GetYAML(store sessions.Store, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		client, err := getK8sClient(r, store)
+		client, err := getK8sClient(r, store, cfg)
 		if err != nil {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -226,9 +227,9 @@ func getObjectYAMLMap(ctx context.Context, client *kubernetes.Clientset, kindLow
 }
 
 // ApplyYAML accepts a YAML (or JSON) manifest for an existing resource and applies it via SSA.
-func ApplyYAML(store sessions.Store) http.HandlerFunc {
+func ApplyYAML(store sessions.Store, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		client, err := getK8sClient(r, store)
+		client, err := getK8sClient(r, store, cfg)
 		if err != nil {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return

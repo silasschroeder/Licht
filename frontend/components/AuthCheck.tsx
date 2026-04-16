@@ -1,11 +1,21 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { useEffect, useState, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet } from "../lib/api";
 
-export default function AuthCheck({ children }) {
+interface AuthCheckProps {
+  children: ReactNode;
+}
+
+interface AuthState {
+  loading: boolean;
+  ok: boolean;
+}
+
+export default function AuthCheck({ children }: AuthCheckProps) {
   const router = useRouter();
-  const [state, setState] = useState({ loading: true, ok: false });
+  const [state, setState] = useState<AuthState>({ loading: true, ok: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -36,5 +46,5 @@ export default function AuthCheck({ children }) {
   if (state.loading)
     return <div style={{ padding: 30 }}>Checking session…</div>;
   if (!state.ok) return null;
-  return children;
+  return <>{children}</>;
 }

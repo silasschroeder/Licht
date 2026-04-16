@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gorilla/sessions"
+	"github.com/silasschroeder/licht/go/config"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -19,9 +20,9 @@ type PodEvent struct {
 }
 
 // WatchPods streams pod changes across all namespaces
-func WatchPods(store sessions.Store) http.HandlerFunc {
+func WatchPods(store sessions.Store, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		client, err := getK8sClient(r, store)
+		client, err := getK8sClient(r, store, cfg)
 		if err != nil {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return

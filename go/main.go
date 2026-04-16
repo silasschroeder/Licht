@@ -4,16 +4,19 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/silasschroeder/licht/go/config"
 	"github.com/silasschroeder/licht/go/handlers"
 )
 
 // Use FilesystemStore to handle large session data (like certificates)
-var store = sessions.NewFilesystemStore("./sessions", []byte("super-secret-key"))
+var (
+	store  *sessions.FilesystemStore
+	appCfg *config.Config
+)
 
 // Middleware: recover panics -> 500 JSON
 func recovery(next http.Handler) http.Handler {
@@ -40,8 +43,8 @@ func logging(next http.Handler) http.Handler {
 
 // CORS middleware (allow localhost:3000)
 func cors(next http.Handler) http.Handler {
-	allowed := []string{"http://localhost:3000"}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		allowed := appCfg.AllowedCORSOrigins
 		origin := r.Header.Get("Origin")
 		for _, o := range allowed {
 			if origin == o {
@@ -62,6 +65,17 @@ func cors(next http.Handler) http.Handler {
 }
 
 func main() {
+	// Load configuration
+	var err error
+	appCfg, err = config.Load()
+	if err != nil {
+		log.Fatalf("Configuration error: %v", err)
+	}
+
+	store = sessions.NewFilesystemStore("./sessions", appCfg.SessionSecretKey)
+	// Increase MaxLength to handle large certificate data
+	store.MaxLength(8192)
+
 	// Ensure sessions directory exists
 	if err := os.MkdirAll("./sessions", 0700); err != nil {
 		log.Fatal("Failed to create sessions directory:", err)
@@ -69,7 +83,7 @@ func main() {
 
 	store.Options.Path = "/"
 	store.Options.HttpOnly = true
-	store.Options.MaxAge = 3600 * 8
+	store.Options.MaxAge = appCfg.SessionMaxAge
 	store.Options.SameSite = http.SameSiteLaxMode
 	// Workaround: secure cookies often require HTTPS. For localhost dev, false is safer unless using https://
 	store.Options.Secure = false
@@ -82,33 +96,33 @@ func main() {
 	r.Use(logging)
 
 	// Auth routes (public)
-	r.HandleFunc("/api/auth/login", handlers.Login(store)).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/auth/login", handlers.Login(store, appCfg)).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/logout", handlers.Logout(store)).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/check", handlers.CheckAuth(store)).Methods("GET", "OPTIONS")
 
 	// Protected resource routes
 	auth := handlers.AuthMiddleware(store)
 
-	r.Handle("/api/pods", auth(handlers.GetPods(store))).Methods("GET")
-	r.Handle("/api/nodes", auth(handlers.GetNodes(store))).Methods("GET")
-	r.Handle("/api/namespaces", auth(handlers.GetNamespaces(store))).Methods("GET")
-	r.Handle("/api/services", auth(handlers.GetServices(store))).Methods("GET")
-	r.Handle("/api/deployments", auth(handlers.GetDeployments(store))).Methods("GET")
-	r.Handle("/api/replicasets", auth(handlers.GetReplicaSets(store))).Methods("GET")
-	r.Handle("/api/statefulsets", auth(handlers.GetStatefulSets(store))).Methods("GET")
-	r.Handle("/api/daemonsets", auth(handlers.GetDaemonSets(store))).Methods("GET")
-	r.Handle("/api/jobs", auth(handlers.GetJobs(store))).Methods("GET")
-	r.Handle("/api/cronjobs", auth(handlers.GetCronJobs(store))).Methods("GET")
+	r.Handle("/api/pods", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchPods))).Methods("GET")
+	r.Handle("/api/nodes", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchNodes))).Methods("GET")
+	r.Handle("/api/namespaces", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchNamespaces))).Methods("GET")
+	r.Handle("/api/services", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchServices))).Methods("GET")
+	r.Handle("/api/deployments", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchDeployments))).Methods("GET")
+	r.Handle("/api/replicasets", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchReplicaSets))).Methods("GET")
+	r.Handle("/api/statefulsets", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchStatefulSets))).Methods("GET")
+	r.Handle("/api/daemonsets", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchDaemonSets))).Methods("GET")
+	r.Handle("/api/jobs", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchJobs))).Methods("GET")
+	r.Handle("/api/cronjobs", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchCronJobs))).Methods("GET")
 
 	// YAML inspect route
-	r.Handle("/api/yaml", auth(handlers.GetYAML(store))).Methods("GET")
+	r.Handle("/api/yaml", auth(handlers.GetYAML(store, appCfg))).Methods("GET")
 	// YAML edit/apply route
-	r.Handle("/api/yaml", auth(handlers.ApplyYAML(store))).Methods("PUT")
+	r.Handle("/api/yaml", auth(handlers.ApplyYAML(store, appCfg))).Methods("PUT")
 
 	// SSE watch route
-	r.Handle("/api/watch/pods", auth(handlers.WatchPods(store))).Methods("GET")
+	r.Handle("/api/watch/pods", auth(handlers.WatchPods(store, appCfg))).Methods("GET")
 	// NEW: multi-resource stream
-	r.Handle("/api/watch/stream", auth(handlers.WatchAll(store))).Methods("GET")
+	r.Handle("/api/watch/stream", auth(handlers.WatchAll(store, appCfg))).Methods("GET")
 
 	// 404 fallback (ensures CORS still returned)
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -116,10 +130,7 @@ func main() {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 	})
 
-	port := os.Getenv("API_PORT")
-	if strings.TrimSpace(port) == "" {
-		port = "8080"
-	}
+	port := appCfg.APIPort
 	log.Printf("API listening on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }

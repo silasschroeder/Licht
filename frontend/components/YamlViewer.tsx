@@ -1,24 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, KeyboardEvent } from "react";
 import styles from "@/app/page.module.css";
 import Prism from "prismjs";
 import "prismjs/components/prism-yaml";
 
-export default function YamlViewer({ kind, namespace, name, open, onClose }) {
+interface YamlViewerProps {
+  kind: string;
+  namespace: string | null;
+  name: string;
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function YamlViewer({
+  kind,
+  namespace,
+  name,
+  open,
+  onClose,
+}: YamlViewerProps) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [source, setSource] = useState("live");
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState("");
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const nsParam = namespace
     ? `&namespace=${encodeURIComponent(namespace)}`
     : "";
 
-  // fetch current YAML
+  // Fetch current YAML
   useEffect(() => {
     if (!open) return;
     let aborted = false;
@@ -38,7 +53,7 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
           setText(t);
           if (!isEditing) setEditText(t);
         }
-      } catch (e) {
+      } catch (e: any) {
         if (!aborted) setText(`# Error: ${e.message}`);
         if (!aborted) setError(e.message);
       } finally {
@@ -48,8 +63,54 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
     return () => {
       aborted = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, kind, namespace, name, source]);
+
+  // Keyboard escape handler
+  useEffect(() => {
+    if (!open) return;
+    const handleEscape = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape" && !saving) {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [open, saving, onClose]);
+
+  // Focus trap
+  useEffect(() => {
+    if (!open || !modalRef.current) return;
+    const modal = modalRef.current;
+    const focusableElements = modal.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0] as HTMLElement;
+    const lastElement = focusableElements[
+      focusableElements.length - 1
+    ] as HTMLElement;
+
+    const handleTab = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement?.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement?.focus();
+        }
+      }
+    };
+
+    modal.addEventListener("keydown", handleTab as any);
+    firstElement?.focus();
+
+    return () => {
+      modal.removeEventListener("keydown", handleTab as any);
+    };
+  }, [open]);
 
   const highlighted = useMemo(() => {
     try {
@@ -107,10 +168,9 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
       );
       const t = await res.text();
       if (!res.ok) throw new Error(t || `HTTP ${res.status}`);
-      // Update viewer to the returned YAML
       setText(t);
       setIsEditing(false);
-    } catch (e) {
+    } catch (e: any) {
       setError(e.message);
     } finally {
       setSaving(false);
@@ -118,10 +178,20 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
   };
 
   return (
-    <div className={styles.modalBackdrop} onClick={onClose}>
-      <div className={styles.modalWindow} onClick={(e) => e.stopPropagation()}>
+    <div
+      className={styles.modalBackdrop}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="yaml-viewer-title"
+    >
+      <div
+        ref={modalRef}
+        className={styles.modalWindow}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className={styles.modalHeader}>
-          <div className={styles.modalTitle}>
+          <div id="yaml-viewer-title" className={styles.modalTitle}>
             {kind}/{namespace ? namespace + "/" : ""}
             {name}
           </div>
@@ -131,13 +201,13 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
                 className={styles.resourceTab}
+                aria-label="YAML source"
               >
                 <option value="live">Live</option>
                 <option value="last-applied">Last-applied</option>
               </select>
             )}
 
-            {/* Copy */}
             <button
               onClick={copy}
               className={`${styles.resourceTab} ${styles.iconButton}`}
@@ -161,7 +231,6 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
               </svg>
             </button>
 
-            {/* Edit or Save/Cancel */}
             {!isEditing ? (
               <button
                 onClick={startEdit}
@@ -208,7 +277,6 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
               </>
             )}
 
-            {/* Download */}
             <button
               onClick={download}
               className={`${styles.resourceTab} ${styles.iconButton}`}
@@ -233,7 +301,6 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
               </svg>
             </button>
 
-            {/* Close (X with red hover) */}
             <button
               onClick={onClose}
               className={`${styles.resourceTab} ${styles.iconButton} ${styles.iconClose}`}
@@ -260,6 +327,7 @@ export default function YamlViewer({ kind, namespace, name, open, onClose }) {
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
             spellCheck={false}
+            aria-label="YAML editor"
           />
         ) : (
           <pre className={styles.modalPre}>
