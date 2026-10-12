@@ -15,7 +15,7 @@ import {
 import { slideRightVariants, backdropVariants, transitions } from "@/lib/animations";
 import styles from "./ResourceDrawer.module.css";
 
-type DrawerTab = "overview" | "yaml";
+type DrawerTab = "overview" | "yaml" | "logs";
 
 interface ResourceDrawerProps {
   isOpen: boolean;
@@ -278,6 +278,16 @@ export function ResourceDrawer({
               >
                 YAML
               </button>
+              {kind === "Pod" && (
+                <button
+                  className={`${styles.tab} ${
+                    activeTab === "logs" ? styles.tabActive : ""
+                  }`}
+                  onClick={() => setActiveTab("logs")}
+                >
+                  Logs
+                </button>
+              )}
             </div>
 
             {/* Content */}
@@ -474,6 +484,21 @@ export function ResourceDrawer({
                         </code>
                       </pre>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "logs" && (
+                <div className={styles.logsPane}>
+                  <div className={styles.logsToolbar}>
+                    <span className={styles.logsHint}>
+                      Log streaming is not wired up yet.
+                    </span>
+                  </div>
+                  <div className={styles.logsOutput}>
+                    <span className={styles.logsPlaceholder}>
+                      {name} logs will stream here.
+                    </span>
                   </div>
                 </div>
               )}

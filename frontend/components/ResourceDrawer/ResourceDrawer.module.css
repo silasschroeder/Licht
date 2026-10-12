@@ -384,3 +384,41 @@
   font-size: var(--text-xs);
   color: var(--text-tertiary);
 }
+
+/* --- Logs tab: always-dark terminal surface (both themes) --- */
+.logsPane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--term-bg);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.logsToolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.logsHint {
+  font-size: var(--text-xs);
+  color: var(--term-muted);
+}
+
+.logsOutput {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--term-text);
+}
+
+.logsPlaceholder {
+  color: var(--term-muted);
+}

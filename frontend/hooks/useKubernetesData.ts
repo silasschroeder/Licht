@@ -12,6 +12,8 @@ interface UseKubernetesDataReturn {
   loading: boolean;
   error: string | null;
   lastUpdated: Date | null;
+  connectionState: "connecting" | "live" | "reconnecting";
+  counts: Record<string, number>;
   fetchData: () => Promise<void>;
 }
 
@@ -31,6 +33,8 @@ export function useKubernetesData(): UseKubernetesDataReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [connectionState, setConnectionState] =
+    useState<"connecting" | "live" | "reconnecting">("connecting");
 
   const ssePodsActiveRef = useRef(false);
 
@@ -136,6 +140,9 @@ export function useKubernetesData(): UseKubernetesDataReturn {
     const es = new EventSource(`${API_BASE}/api/watch/stream`, {
       withCredentials: true,
     });
+
+    es.onopen = () => setConnectionState("live");
+    es.onerror = () => setConnectionState("reconnecting");
 
     const handle = (ev: MessageEvent) => {
       let msg: any;
@@ -400,6 +407,20 @@ export function useKubernetesData(): UseKubernetesDataReturn {
     };
   }, []);
 
+  // Per-kind counts for the resource rail badges
+  const counts = {
+    pods: resourceData.pods.length,
+    services: resourceData.services.length,
+    deployments: resourceData.deployments.length,
+    replicaSets: resourceData.replicaSets.length,
+    statefulSets: resourceData.statefulSets.length,
+    daemonSets: resourceData.daemonSets.length,
+    jobs: resourceData.jobs.length,
+    cronJobs: resourceData.cronJobs.length,
+    namespaces: namespaces.length,
+    nodes: nodes.length,
+  };
+
   return {
     resourceData,
     nodes,
@@ -407,6 +428,8 @@ export function useKubernetesData(): UseKubernetesDataReturn {
     loading,
     error,
     lastUpdated,
+    connectionState,
+    counts,
     fetchData,
   };
 }

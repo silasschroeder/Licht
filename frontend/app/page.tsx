@@ -2,28 +2,45 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import ResourceTable from "../components/ResourceTable";
-import ResourceTabs from "../components/ResourceTabs";
 import { NamespaceCanvas } from "../components/NamespaceCanvas";
-import { ResourceExplorer, TopologySection } from "../components/ResourceExplorer";
+import { ResourceExplorer } from "../components/ResourceExplorer";
 import { QuickFilter } from "../components/QuickFilter";
 import { ResourceDrawer } from "../components/ResourceDrawer";
+import { AppShell, RailView } from "../components/AppShell";
 import { useKubernetesData } from "../hooks/useKubernetesData";
+import { useTheme } from "../hooks/useTheme";
 import { Pod, ResourceType } from "@/types/kubernetes";
 import styles from "./page.module.css";
 
-// Logo icon component
-const LichtLogoIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-  </svg>
-);
+const RESOURCE_KINDS: ResourceType[] = [
+  "pods",
+  "services",
+  "deployments",
+  "replicaSets",
+  "statefulSets",
+  "daemonSets",
+  "jobs",
+  "cronJobs",
+];
+
+const VIEW_TITLES: Record<RailView, string> = {
+  namespaces: "Namespaces",
+  nodes: "Nodes",
+  pods: "Pods",
+  deployments: "Deployments",
+  services: "Services",
+  replicaSets: "ReplicaSets",
+  statefulSets: "StatefulSets",
+  daemonSets: "DaemonSets",
+  jobs: "Jobs",
+  cronJobs: "CronJobs",
+};
 
 export default function Dashboard() {
+  const [activeView, setActiveView] = useState<RailView>("pods");
   const [selectedNamespace, setSelectedNamespace] = useState<string | null>(
     null
   );
-  const [resourceType, setResourceType] = useState<ResourceType>("pods");
   const [yamlOpen, setYamlOpen] = useState(false);
   const [drawerTarget, setDrawerTarget] = useState<{
     kind: string;
@@ -32,7 +49,10 @@ export default function Dashboard() {
   } | null>(null);
   const [highlightPodKey, setHighlightPodKey] = useState<string | null>(null);
   const [quickFilterOpen, setQuickFilterOpen] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { theme, toggle: toggleTheme } = useTheme();
 
   // Age timer
   const [now, setNow] = useState(Date.now());
@@ -57,23 +77,28 @@ export default function Dashboard() {
     return `${m}m`;
   }
 
-  // Use custom hook for data fetching
   const {
     resourceData,
     nodes,
     namespaces,
-    loading,
-    error,
     lastUpdated,
-    fetchData,
+    connectionState,
+    counts,
   } = useKubernetesData();
+
+  const openDrawer = useCallback(
+    (kind: string, namespace: string | null, name: string) => {
+      setDrawerTarget({ kind, namespace, name });
+      setYamlOpen(true);
+    },
+    []
+  );
 
   // Handle pod selection from NamespaceCanvas
   const handlePodSelect = useCallback((pod: Pod) => {
-    setResourceType("pods");
+    setActiveView("pods");
     setSelectedNamespace(pod.namespace);
 
-    // Trigger highlight
     const key = `${pod.namespace}/${pod.name}`;
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     setHighlightPodKey(key);
@@ -82,16 +107,12 @@ export default function Dashboard() {
       highlightTimerRef.current = null;
     }, 2000);
 
-    // Scroll to row
     setTimeout(() => {
       const rowEl = document.querySelector(
         `[data-pod-row="${pod.namespace}/${pod.name}"]`
       );
       if (rowEl) {
-        rowEl.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
+        rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }, 140);
   }, []);
@@ -104,7 +125,6 @@ export default function Dashboard() {
         setQuickFilterOpen(true);
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
@@ -112,133 +132,105 @@ export default function Dashboard() {
   // Handle resource selection from QuickFilter
   const handleQuickFilterSelect = useCallback(
     (type: ResourceType, name: string, namespace: string | null) => {
-      setResourceType(type);
-      if (namespace) {
-        setSelectedNamespace(namespace);
-      }
-      // Could also trigger highlight here if needed
+      setActiveView(type);
+      if (namespace) setSelectedNamespace(namespace);
     },
     []
   );
 
+  const isResourceKind = RESOURCE_KINDS.includes(activeView as ResourceType);
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <div className={styles.centerShell}>
-          <div className={styles.centerContent}>
-            <header className={styles.header}>
-              <div className={styles.branding}>
-                <div className={styles.logoIcon}>
-                  <LichtLogoIcon />
-                </div>
-                  <h1 className={styles.pageTitle}>Licht</h1>
-                  <span className={styles.tagline}>Kubernetes Dashboard</span>
-                </div>
-                <div className={styles.headerActions}>
-                  <button
-                    className={styles.searchButton}
-                    onClick={() => setQuickFilterOpen(true)}
-                    aria-label="Search resources"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    <span>Search</span>
-                    <kbd className={styles.kbd}>K</kbd>
-                  </button>
-                  <div className={styles.clusterInfo}>
-                    <span className={styles.clusterHost}>
-                      kubernetes.default.svc
-                    </span>
-                  </div>
-                </div>
-              </header>
+    <AppShell
+      activeView={activeView}
+      counts={counts}
+      onViewSelect={setActiveView}
+      railCollapsed={railCollapsed}
+      onToggleRail={() => setRailCollapsed((c) => !c)}
+      namespaces={(namespaces || []).map((n) => n.name)}
+      selectedNamespace={selectedNamespace}
+      onNamespaceChange={setSelectedNamespace}
+      connectionState={connectionState}
+      lastUpdated={lastUpdated}
+      onSearchClick={() => setQuickFilterOpen(true)}
+      theme={theme}
+      onToggleTheme={toggleTheme}
+    >
+      <div className={styles.viewHeader}>
+        <h1 className={styles.viewTitle}>{VIEW_TITLES[activeView]}</h1>
+      </div>
 
-              <section aria-labelledby="namespaces-heading">
-                <h2 id="namespaces-heading" className={styles.sectionTitle}>
-                  Namespaces
-                </h2>
-
-                <NamespaceCanvas
-                  namespaces={namespaces || []}
-                  pods={resourceData.pods || []}
-                  selectedNamespace={selectedNamespace}
-                  onNamespaceSelect={setSelectedNamespace}
-                  onPodSelect={handlePodSelect}
-                  formatAge={formatAge}
-                />
-              </section>
-
-              <section aria-labelledby="content-heading">
-                <h2 id="content-heading" className={styles.sectionTitle}>
-                  Content
-                </h2>
-
-                <ResourceTabs
-                  activeType={resourceType}
-                  onTabChange={setResourceType}
-                />
-
-                <ResourceExplorer
-                  resourceType={resourceType}
-                  resourceData={resourceData}
-                  namespace={selectedNamespace}
-                  onYamlClick={(kind, namespace, name) => {
-                    setDrawerTarget({ kind, namespace, name });
-                    setYamlOpen(true);
-                  }}
-                  formatAge={formatAge}
-                  renderTable={() => (
-                    <ResourceTable
-                      type={resourceType}
-                      namespace={selectedNamespace}
-                      data={resourceData[resourceType]}
-                      highlightPodKey={highlightPodKey}
-                      formatAge={formatAge}
-                      onYamlClick={(kind, namespace, name) => {
-                        setDrawerTarget({ kind, namespace, name });
-                        setYamlOpen(true);
-                      }}
-                    />
-                  )}
-                />
-              </section>
-
-              <TopologySection
-                resourceData={resourceData}
-                selectedNamespace={selectedNamespace}
-                onResourceClick={(type, name, namespace) => {
-                  setResourceType(type);
-                  if (namespace) {
-                    setSelectedNamespace(namespace);
-                  }
-                  // Optionally open drawer for clicked resource
-                  setDrawerTarget({ kind: type, namespace, name });
-                  setYamlOpen(true);
-                }}
-              />
-            </div>
-          </div>
-        </main>
-
-        <ResourceDrawer
-          isOpen={yamlOpen}
-          onClose={() => setYamlOpen(false)}
-          kind={drawerTarget?.kind || ""}
-          name={drawerTarget?.name || ""}
-          namespace={drawerTarget?.namespace || null}
-          resourceData={resourceData}
+      {activeView === "namespaces" && (
+        <NamespaceCanvas
+          namespaces={namespaces || []}
+          pods={resourceData.pods || []}
+          selectedNamespace={selectedNamespace}
+          onNamespaceSelect={setSelectedNamespace}
+          onPodSelect={handlePodSelect}
           formatAge={formatAge}
         />
+      )}
 
-        <QuickFilter
-          isOpen={quickFilterOpen}
-          onClose={() => setQuickFilterOpen(false)}
+      {activeView === "nodes" && (
+        <ul className={styles.nodeList}>
+          {(nodes || []).map((node) => (
+            <li key={node.name} className={styles.nodeRow}>
+              <button
+                className={styles.nodeName}
+                onClick={() => openDrawer("Node", null, node.name)}
+              >
+                {node.name}
+              </button>
+              <span className={styles.nodeMeta}>{node.status || "-"}</span>
+              <span className={styles.nodeMeta}>{node.roles || "-"}</span>
+              <span className={styles.nodeMeta}>{node.version || "-"}</span>
+              <span className={styles.nodeMeta}>{node.age || "-"}</span>
+            </li>
+          ))}
+          {(nodes || []).length === 0 && (
+            <li className={styles.emptyView}>no nodes visible</li>
+          )}
+        </ul>
+      )}
+
+      {isResourceKind && (
+        <ResourceExplorer
+          resourceType={activeView as ResourceType}
           resourceData={resourceData}
-          onSelectResource={handleQuickFilterSelect}
-          onFilterChange={() => {}}
+          namespace={selectedNamespace}
+          onYamlClick={openDrawer}
+          formatAge={formatAge}
+          renderTable={() => (
+            <ResourceTable
+              type={activeView as ResourceType}
+              namespace={selectedNamespace}
+              data={resourceData[activeView as ResourceType]}
+              highlightPodKey={highlightPodKey}
+              formatAge={formatAge}
+              onYamlClick={openDrawer}
+            />
+          )}
         />
-    </div>
+      )}
+      {/* Topology view disabled for now (not shown on any view). */}
+
+      <ResourceDrawer
+        isOpen={yamlOpen}
+        onClose={() => setYamlOpen(false)}
+        kind={drawerTarget?.kind || ""}
+        name={drawerTarget?.name || ""}
+        namespace={drawerTarget?.namespace || null}
+        resourceData={resourceData}
+        formatAge={formatAge}
+      />
+
+      <QuickFilter
+        isOpen={quickFilterOpen}
+        onClose={() => setQuickFilterOpen(false)}
+        resourceData={resourceData}
+        onSelectResource={handleQuickFilterSelect}
+        onFilterChange={() => {}}
+      />
+    </AppShell>
   );
 }

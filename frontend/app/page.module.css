@@ -319,79 +319,67 @@
 /* Outer region centers the table block */
 .tableRegion {
   width: 100%;
-  display: flex;
-  justify-content: center;
-  margin-top: var(--space-4, 16px);
+  display: block;
+  margin-top: var(--space-2);
 }
 
-/* Scroll container: shrinks to content, but never exceeds viewport */
+/* Scroll container: full width, horizontal scroll for wide tables */
 .tableWrapper {
-  max-width: 100%;
+  width: 100%;
   overflow-x: auto;
-  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: var(--space-2, 8px);
-  display: inline-block;
-  width: auto;
-  background: var(--surface-elevated, #ffffff);
-  /* No border - the parent container provides the border */
-  border-radius: var(--radius-lg, 16px);
+  background: var(--surface-card);
 }
 
-/* Inner block ensures natural content width */
+/* Inner block: flush, border-separated, no shadow, no radius (terminal-like) */
 .tableInner {
-  display: inline-block;
-  width: max-content;
-  min-width: 0;
+  width: 100%;
+  min-width: max-content;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  border-radius: var(--radius-md, 12px);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-/* Table keeps natural width */
 .table {
-  width: max-content;
+  width: 100%;
   table-layout: auto;
-  min-width: 0;
   border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
-/* Keep columns tight; remove if you want wrapping */
 .table th,
 .table td {
   white-space: nowrap;
-  padding: var(--space-3, 12px) var(--space-4, 16px);
+  padding: var(--space-2) var(--space-4);
   text-align: left;
 }
 
-/* Header row gets the gradient */
+/* Header row: recessed surface, not a gradient */
 .table thead tr {
-  background: linear-gradient(90deg, #1669e8 0%, #4294ff 100%);
+  background: var(--surface-rail);
 }
 
 .table th {
   background: transparent;
   font-weight: 600;
-  font-size: var(--text-xs, 0.75rem);
-  letter-spacing: 0.5px;
-  color: #ffffff;
-  text-transform: uppercase;
-  border-bottom: none;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--surface-border-strong);
 }
 
 .table td {
-  font-size: var(--text-sm, 0.875rem);
-  color: var(--text-primary, #1e293b);
-  border-bottom: 1px solid var(--surface-border, rgba(0, 0, 0, 0.08));
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--surface-border);
 }
 
 .table tbody tr {
-  transition: background var(--duration-fast, 150ms) var(--ease-out, ease-out);
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .table tbody tr:hover {
-  background: var(--surface-bg, #f8fafc);
+  background: var(--surface-bg);
 }
 
 .table tbody tr:last-child td {
@@ -819,4 +807,62 @@
   background: #ef4444; /* red */
   border-color: #ef4444;
   color: #ffffff;
+}
+
+/* --- Redesign: view header and simple node list --- */
+.viewHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.viewTitle {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.nodeList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--surface-border);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.nodeRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-card);
+}
+
+.nodeName {
+  flex: 1 1 auto;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-accent);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.nodeName:hover {
+  text-decoration: underline;
+}
+
+.nodeMeta {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.emptyView {
+  padding: var(--space-4);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
 }

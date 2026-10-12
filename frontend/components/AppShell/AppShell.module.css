@@ -1,0 +1,32 @@
+.shell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 48px 1fr;
+  grid-template-areas:
+    "rail topbar"
+    "rail center";
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--surface-bg);
+}
+
+.center {
+  grid-area: center;
+  overflow: auto;
+  padding: var(--space-6);
+}
+
+@media (max-width: 720px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 48px 1fr 52px;
+    grid-template-areas:
+      "topbar"
+      "center"
+      "rail";
+  }
+  .center {
+    padding: var(--space-4);
+  }
+}

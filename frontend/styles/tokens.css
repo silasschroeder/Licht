@@ -1,7 +1,7 @@
 /* Licht Design System Tokens */
 
 :root {
-  /* Primary Colors - Blue Gradient */
+  /* Primary Colors - Blue Gradient (identity, unchanged) */
   --color-primary-600: #1255cc;
   --color-primary-500: #1669e8;
   --color-primary-400: #3d8bff;
@@ -11,7 +11,7 @@
   --color-primary-gradient: linear-gradient(135deg, #1669e8 0%, #4294ff 100%);
   --color-primary-glow: rgba(22, 105, 232, 0.25);
 
-  /* Status Colors */
+  /* Status Colors (semantics fixed, unchanged) */
   --status-running: #22c55e;
   --status-running-bg: rgba(34, 197, 94, 0.12);
   --status-pending: #f59e0b;
@@ -23,26 +23,42 @@
   --status-unknown: #6b7280;
   --status-unknown-bg: rgba(107, 114, 128, 0.12);
 
-  /* Surface Colors */
-  --surface-bg: #f8fafc;
-  --surface-card: rgba(255, 255, 255, 0.9);
-  --surface-card-hover: rgba(255, 255, 255, 1);
-  --surface-elevated: #ffffff;
-  --surface-overlay: rgba(0, 0, 0, 0.5);
-  --surface-border: rgba(0, 0, 0, 0.08);
-  --surface-border-strong: rgba(0, 0, 0, 0.12);
+  /* Neutral slate ramp */
+  --n-0: #ffffff;
+  --n-50: #f8fafc;
+  --n-100: #eef2f6;
+  --n-150: #e2e8f0;
+  --n-300: #cbd5e1;
+  --n-600: #475569;
+  --n-800: #1e293b;
 
-  /* Text Colors */
+  /* Surface Colors (light theme) */
+  --surface-bg: #f8fafc;
+  --surface-card: #ffffff;
+  --surface-card-hover: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-rail: #eef2f6;
+  --surface-overlay: rgba(15, 23, 42, 0.45);
+  --surface-border: #e2e8f0;
+  --surface-border-strong: #cbd5e1;
+
+  /* Text Colors (light theme) */
   --text-primary: #1e293b;
-  --text-secondary: #64748b;
+  --text-secondary: #475569;
   --text-tertiary: #94a3b8;
   --text-inverse: #ffffff;
+  --text-accent: #1669e8;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+  /* Always-dark log/terminal surface (same in both themes) */
+  --term-bg: #0b1220;
+  --term-text: #e2e8f0;
+  --term-muted: #64748b;
+
+  /* Shadows (reserved for floating layers only) */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --shadow-xl: 0 16px 48px rgba(15, 23, 42, 0.16);
   --shadow-glow: 0 0 20px var(--color-primary-glow);
 
   /* Spacing */
@@ -56,25 +72,23 @@
   --space-10: 40px;
   --space-12: 48px;
 
-  /* Border Radius */
+  /* Border Radius (two intentional radii; lg/xl aliased pending migration) */
   --radius-sm: 6px;
   --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-lg: 10px;
+  --radius-xl: 10px;
   --radius-full: 9999px;
 
-  /* Typography */
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  /* Typography - JetBrains Mono is the primary UI face */
+  --font-sans: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-prose: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
-  --text-3xl: 2rem;
-  --text-4xl: 2.5rem;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
 
   /* Animation Durations */
   --duration-fast: 150ms;
@@ -87,6 +101,7 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* Z-Index Scale */
+  --z-rail: 50;
   --z-dropdown: 100;
   --z-sticky: 200;
   --z-overlay: 300;
@@ -95,11 +110,30 @@
   --z-tooltip: 600;
 }
 
-/* Dark mode support (future) */
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Will be implemented in future version */
-  }
+/* Dark theme (opt-in via attribute; light stays default) */
+[data-theme="dark"] {
+  --surface-bg: #0f172a;
+  --surface-card: #16213a;
+  --surface-card-hover: #1c2a45;
+  --surface-elevated: #1c2a45;
+  --surface-rail: #0b1220;
+  --surface-overlay: rgba(2, 6, 15, 0.6);
+  --surface-border: rgba(148, 163, 184, 0.14);
+  --surface-border-strong: rgba(148, 163, 184, 0.24);
+
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-accent: #3d8bff;
+
+  /* Brighten active/focus one step for contrast on dark */
+  --color-primary-500: #3d8bff;
+
+  /* No card shadow in dark; border + bg step separate surfaces */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: 0 8px 24px rgba(2, 6, 15, 0.4);
+  --shadow-xl: 0 16px 48px rgba(2, 6, 15, 0.5);
 }
 
 /* Reduced motion */

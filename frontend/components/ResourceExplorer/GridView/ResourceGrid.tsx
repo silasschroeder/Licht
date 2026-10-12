@@ -9,7 +9,6 @@ import {
   Service,
   Deployment,
 } from "@/types/kubernetes";
-import { cardVariants, staggerContainerVariants, transitions } from "@/lib/animations";
 import styles from "./GridView.module.css";
 
 interface ResourceCardProps {
@@ -168,13 +167,9 @@ export function ResourceCard({
   };
 
   return (
-    <motion.div
+    <div
       className={`${styles.card} ${isExpanded ? styles.cardExpanded : ""}`}
       onClick={onToggleExpand}
-      variants={cardVariants}
-      whileHover="hover"
-      whileTap="tap"
-      layout
       role="button"
       tabIndex={0}
       aria-expanded={isExpanded}
@@ -237,36 +232,29 @@ export function ResourceCard({
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            className={styles.expandedContent}
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={transitions.normal}
-          >
-            {namespace && (
-              <div className={styles.expandedSection}>
-                <div className={styles.expandedLabel}>Namespace</div>
-                <div className={styles.expandedValue}>{namespace}</div>
-              </div>
-            )}
-
+      {isExpanded && (
+        <div className={styles.expandedContent}>
+          {namespace && (
             <div className={styles.expandedSection}>
-              <div className={styles.expandedLabel}>Status</div>
-              <div className={styles.expandedValue}>{status}</div>
+              <div className={styles.expandedLabel}>Namespace</div>
+              <div className={styles.expandedValue}>{namespace}</div>
             </div>
+          )}
 
-            {resourceType === "pods" && (
-              <>
-                {(resource as Pod).ip && (
-                  <div className={styles.expandedSection}>
-                    <div className={styles.expandedLabel}>Pod IP</div>
-                    <div className={styles.expandedValue}>
-                      {(resource as Pod).ip}
-                    </div>
+          <div className={styles.expandedSection}>
+            <div className={styles.expandedLabel}>Status</div>
+            <div className={styles.expandedValue}>{status}</div>
+          </div>
+
+          {resourceType === "pods" && (
+            <>
+              {(resource as Pod).ip && (
+                <div className={styles.expandedSection}>
+                  <div className={styles.expandedLabel}>Pod IP</div>
+                  <div className={styles.expandedValue}>
+                    {(resource as Pod).ip}
                   </div>
+                </div>
                 )}
               </>
             )}
@@ -297,10 +285,9 @@ export function ResourceCard({
                 Copy Name
               </button>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -327,25 +314,18 @@ export function ResourceGrid({
   }, []);
 
   return (
-    <motion.div
-      className={styles.grid}
-      variants={staggerContainerVariants}
-      initial="initial"
-      animate="animate"
-    >
-      <AnimatePresence mode="popLayout">
-        {resources.map((resource) => (
-          <ResourceCard
-            key={resource.name}
-            resource={resource}
-            resourceType={resourceType}
-            isExpanded={expandedId === resource.name}
-            onToggleExpand={() => handleToggleExpand(resource.name)}
-            onYamlClick={onYamlClick}
-            formatAge={formatAge}
-          />
-        ))}
-      </AnimatePresence>
-    </motion.div>
+    <div className={styles.grid}>
+      {resources.map((resource) => (
+        <ResourceCard
+          key={resource.name}
+          resource={resource}
+          resourceType={resourceType}
+          isExpanded={expandedId === resource.name}
+          onToggleExpand={() => handleToggleExpand(resource.name)}
+          onYamlClick={onYamlClick}
+          formatAge={formatAge}
+        />
+      ))}
+    </div>
   );
 }

@@ -1,0 +1,196 @@
+.rail {
+  grid-area: rail;
+  width: 200px;
+  background: var(--surface-rail);
+  border-right: 1px solid var(--surface-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: var(--z-rail);
+}
+
+/* Collapsed: narrow, marks only. Toggled, not hover-driven. */
+.rail.collapsed {
+  width: 56px;
+}
+
+.logo {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  font-size: var(--text-lg);
+  color: var(--color-primary-500);
+  border-bottom: 1px solid var(--surface-border);
+  flex: 0 0 auto;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.logoMark {
+  flex: 0 0 56px;
+  text-align: center;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  height: 100%;
+}
+
+.logoMark:hover {
+  color: var(--color-primary-400);
+}
+
+.logoWord {
+  flex: 1 1 auto;
+}
+
+.collapseButton {
+  flex: 0 0 auto;
+  margin-right: var(--space-3);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.collapseButton:hover {
+  color: var(--text-primary);
+  border-color: var(--surface-border-strong);
+}
+
+/* In collapsed mode the wordmark and toggle hide; the mark alone remains */
+.collapsed .logoWord,
+.collapsed .collapseButton {
+  display: none;
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) 0;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.item:hover {
+  background: var(--surface-card);
+  color: var(--text-primary);
+}
+
+.item.active {
+  border-left-color: var(--color-primary-500);
+  color: var(--color-primary-500);
+}
+
+.mark {
+  flex: 0 0 54px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.active .mark {
+  font-weight: 600;
+}
+
+.label {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.count {
+  flex: 0 0 auto;
+  margin-right: var(--space-3);
+  padding: 0 var(--space-2);
+  min-width: 20px;
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  background: var(--surface-card);
+  border-radius: var(--radius-full);
+}
+
+.active .count {
+  color: var(--color-primary-500);
+}
+
+/* Collapsed hides labels and counts */
+.collapsed .label,
+.collapsed .count {
+  display: none;
+}
+
+/* Collapsed items are just the centered mark, no gap-induced overflow */
+.collapsed .item {
+  gap: 0;
+}
+
+.collapsed .mark {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 720px) {
+  .rail,
+  .rail.collapsed {
+    width: 100%;
+    height: 52px;
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid var(--surface-border);
+  }
+  .logo {
+    display: none;
+  }
+  .list {
+    flex-direction: row;
+    padding: 0;
+    gap: 0;
+    width: 100%;
+    overflow-x: auto;
+  }
+  .item {
+    flex-direction: column;
+    gap: 0;
+    padding: var(--space-1) var(--space-3);
+    border-left: none;
+    border-top: 2px solid transparent;
+  }
+  .item.active {
+    border-left-color: transparent;
+    border-top-color: var(--color-primary-500);
+  }
+  .label,
+  .count {
+    display: none;
+  }
+}
