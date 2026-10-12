@@ -1,0 +1,9 @@
+apiVersion: v2
+name: licht
+description: Licht, a read-only Kubernetes dashboard that runs in-cluster
+type: application
+version: 0.1.0
+appVersion: "1.0.1"
+home: https://github.com/silasschroeder/Licht
+sources:
+  - https://github.com/silasschroeder/Licht

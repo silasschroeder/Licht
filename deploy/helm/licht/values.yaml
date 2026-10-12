@@ -1,0 +1,43 @@
+image:
+  repository: ghcr.io/silasschroeder/licht
+  tag: ""              # defaults to Chart.appVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Expose the dashboard outside the cluster. Off by default.
+# WARNING: Licht has no app login and defaults to read/write RBAC (including
+# Secrets). Anyone who can reach the Service can modify cluster resources. If you
+# expose it, put authentication in front (Ingress auth, VPN, or an auth proxy),
+# and consider setting rbac.verbs to [get, list, watch] for a read-only install.
+ingress:
+  enabled: false
+  className: ""
+  host: licht.example.com
+  annotations: {}
+  tls: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+  # Verbs granted on every managed resource type (core, apps, batch).
+  # Default is full read/write. For a read-only dashboard, replace with
+  # [get, list, watch].
+  verbs: [get, list, watch, create, update, patch, delete]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+logLevel: info

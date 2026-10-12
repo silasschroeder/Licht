@@ -1,0 +1,25 @@
+{{- if .Values.rbac.create -}}
+# Cluster-wide access to the resource types Licht manages.
+#
+# WARNING: this grants read AND write (including create/delete) on these types
+# cluster-wide, and Licht has no application login. Anyone who can reach the
+# Service can read and modify these resources, INCLUDING all Secrets. Only
+# expose Licht behind authentication you trust, and scope access with network
+# policy. To run Licht read-only instead, set rbac.verbs to [get, list, watch].
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "licht.fullname" . }}
+  labels:
+    {{- include "licht.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [pods, nodes, namespaces, services, configmaps, secrets]
+    verbs: {{ .Values.rbac.verbs | toJson }}
+  - apiGroups: ["apps"]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: {{ .Values.rbac.verbs | toJson }}
+  - apiGroups: ["batch"]
+    resources: [jobs, cronjobs]
+    verbs: {{ .Values.rbac.verbs | toJson }}
+{{- end }}
