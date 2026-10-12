@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import AuthCheck from "../components/AuthCheck";
 import ResourceTable from "../components/ResourceTable";
 import ResourceTabs from "../components/ResourceTabs";
 import { NamespaceCanvas } from "../components/NamespaceCanvas";
@@ -13,9 +11,7 @@ import { useKubernetesData } from "../hooks/useKubernetesData";
 import { Pod, ResourceType } from "@/types/kubernetes";
 import styles from "./page.module.css";
 
-const API_BASE = "";
-
-// Logo icon component - matches login page
+// Logo icon component
 const LichtLogoIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
@@ -24,8 +20,6 @@ const LichtLogoIcon = () => (
 );
 
 export default function Dashboard() {
-  const router = useRouter();
-  const [authReady, setAuthReady] = useState(false);
   const [selectedNamespace, setSelectedNamespace] = useState<string | null>(
     null
   );
@@ -63,33 +57,6 @@ export default function Dashboard() {
     return `${m}m`;
   }
 
-  // Auth check
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/auth/check`, {
-          credentials: "include",
-        });
-        if (cancelled) return;
-        if (res.ok) {
-          setAuthReady(true);
-        } else {
-          setAuthReady(false);
-          router.push("/login");
-        }
-      } catch {
-        if (!cancelled) {
-          setAuthReady(false);
-          router.push("/login");
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
-
   // Use custom hook for data fetching
   const {
     resourceData,
@@ -98,9 +65,8 @@ export default function Dashboard() {
     loading,
     error,
     lastUpdated,
-    clusterAddress,
     fetchData,
-  } = useKubernetesData(authReady);
+  } = useKubernetesData();
 
   // Handle pod selection from NamespaceCanvas
   const handlePodSelect = useCallback((pod: Pod) => {
@@ -155,36 +121,16 @@ export default function Dashboard() {
     []
   );
 
-  function handleLogout() {
-    fetch(`${API_BASE}/api/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-    }).finally(() => router.push("/login"));
-  }
-
-  if (!authReady) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.main}>
-          <div className={styles.centerShell}>
-            <div className={styles.centerContent}>Authorizing…</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={styles.page}>
-      <AuthCheck>
-        <main className={styles.main}>
-          <div className={styles.centerShell}>
-            <div className={styles.centerContent}>
-              <header className={styles.header}>
-                <div className={styles.branding}>
-                  <div className={styles.logoIcon}>
-                    <LichtLogoIcon />
-                  </div>
+      <main className={styles.main}>
+        <div className={styles.centerShell}>
+          <div className={styles.centerContent}>
+            <header className={styles.header}>
+              <div className={styles.branding}>
+                <div className={styles.logoIcon}>
+                  <LichtLogoIcon />
+                </div>
                   <h1 className={styles.pageTitle}>Licht</h1>
                   <span className={styles.tagline}>Kubernetes Dashboard</span>
                 </div>
@@ -203,15 +149,8 @@ export default function Dashboard() {
                   </button>
                   <div className={styles.clusterInfo}>
                     <span className={styles.clusterHost}>
-                      {clusterAddress || "Cluster unbekannt"}
+                      kubernetes.default.svc
                     </span>
-                    <button
-                      className={styles.logoutButton}
-                      onClick={handleLogout}
-                      aria-label="Logout"
-                    >
-                      Logout
-                    </button>
                   </div>
                 </div>
               </header>
@@ -300,7 +239,6 @@ export default function Dashboard() {
           onSelectResource={handleQuickFilterSelect}
           onFilterChange={() => {}}
         />
-      </AuthCheck>
     </div>
   );
 }

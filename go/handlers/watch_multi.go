@@ -7,10 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/sessions"
-	"github.com/silasschroeder/licht/go/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 )
 
 // MultiEvent represents a generic resource watch event
@@ -22,22 +21,15 @@ type MultiEvent struct {
 }
 
 // WatchAll streams changes for multiple resources
-func WatchAll(store sessions.Store, cfg *config.Config) http.HandlerFunc {
+func WatchAll(client kubernetes.Interface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		client, err := getK8sClient(r, store, cfg)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("auth: %v", err), http.StatusUnauthorized)
-			return
-		}
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		// Helpful with proxies (dev)
 		w.Header().Set("X-Accel-Buffering", "no")
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {

@@ -9,22 +9,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gorilla/sessions"
-	"github.com/silasschroeder/licht/go/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 )
 
-func GetYAML(store sessions.Store, cfg *config.Config) http.HandlerFunc {
+func GetYAML(client kubernetes.Interface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		client, err := getK8sClient(r, store, cfg)
-		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
 		q := r.URL.Query()
 		kind := strings.TrimSpace(q.Get("kind"))
 		name := strings.TrimSpace(q.Get("name"))
@@ -167,7 +159,7 @@ func defaultAPIVersionForKind(kindLower string) string {
 }
 
 // getObjectYAMLMap fetches a resource and converts it into a map[string]interface{} for cleaning and YAML marshaling.
-func getObjectYAMLMap(ctx context.Context, client *kubernetes.Clientset, kindLower, ns, name string) (map[string]interface{}, error) {
+func getObjectYAMLMap(ctx context.Context, client kubernetes.Interface, kindLower, ns, name string) (map[string]interface{}, error) {
 	var obj interface{}
 	var err error
 
@@ -227,14 +219,8 @@ func getObjectYAMLMap(ctx context.Context, client *kubernetes.Clientset, kindLow
 }
 
 // ApplyYAML accepts a YAML (or JSON) manifest for an existing resource and applies it via SSA.
-func ApplyYAML(store sessions.Store, cfg *config.Config) http.HandlerFunc {
+func ApplyYAML(client kubernetes.Interface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		client, err := getK8sClient(r, store, cfg)
-		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
 		q := r.URL.Query()
 		kind := strings.TrimSpace(q.Get("kind"))
 		name := strings.TrimSpace(q.Get("name"))

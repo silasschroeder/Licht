@@ -1,16 +1,17 @@
 package handlers
 
 import (
-	"encoding/base64"
-	"strings"
+	"encoding/json"
+	"net/http"
 )
 
-// maybeDecodeBase64OrPEM returns the raw PEM bytes if the input already
-// contains BEGIN/END markers, otherwise tries to base64 decode it.
-func maybeDecodeBase64OrPEM(s string) ([]byte, error) {
-    trim := strings.TrimSpace(s)
-    if strings.Contains(trim, "-----BEGIN") {
-        return []byte(trim), nil
-    }
-    return base64.StdEncoding.DecodeString(trim)
+// writeJSON writes a JSON response with the given status.
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]string{"message": msg})
 }

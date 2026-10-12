@@ -12,13 +12,10 @@ interface UseKubernetesDataReturn {
   loading: boolean;
   error: string | null;
   lastUpdated: Date | null;
-  clusterAddress: string;
   fetchData: () => Promise<void>;
 }
 
-export function useKubernetesData(
-  authReady: boolean
-): UseKubernetesDataReturn {
+export function useKubernetesData(): UseKubernetesDataReturn {
   const [resourceData, setResourceData] = useState<ResourceData>({
     pods: [],
     services: [],
@@ -34,7 +31,6 @@ export function useKubernetesData(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [clusterAddress, setClusterAddress] = useState("");
 
   const ssePodsActiveRef = useRef(false);
 
@@ -54,7 +50,6 @@ export function useKubernetesData(
 
   // Fetch initial data
   const fetchData = async () => {
-    if (!authReady) return;
     try {
       setLoading(true);
       setError(null);
@@ -132,13 +127,11 @@ export function useKubernetesData(
 
   // Initial data load
   useEffect(() => {
-    if (!authReady) return;
     fetchData();
-  }, [authReady]);
+  }, []);
 
   // SSE connection for live updates
   useEffect(() => {
-    if (!authReady) return;
 
     const sseBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
     const es = new EventSource(`${sseBase}/api/watch/stream`, {
@@ -406,47 +399,7 @@ export function useKubernetesData(
       es.removeEventListener("multi", handle);
       es.close();
     };
-  }, [authReady]);
-
-  // Fetch cluster address
-  useEffect(() => {
-    if (!authReady) return;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/auth/check`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const raw = data.server_url || "";
-          if (raw) {
-            try {
-              const u = new URL(raw);
-              setClusterAddress(u.host);
-            } catch {
-              setClusterAddress(raw);
-            }
-          }
-        }
-      } catch {}
-    })();
-  }, [authReady]);
-
-  // Fallback: read from localStorage
-  useEffect(() => {
-    if (clusterAddress) return;
-    try {
-      const saved = localStorage.getItem("licht-server-url");
-      if (saved) {
-        try {
-          const u = new URL(saved);
-          setClusterAddress(u.host);
-        } catch {
-          setClusterAddress(saved);
-        }
-      }
-    } catch {}
-  }, [clusterAddress]);
+  }, []);
 
   return {
     resourceData,
@@ -455,7 +408,6 @@ export function useKubernetesData(
     loading,
     error,
     lastUpdated,
-    clusterAddress,
     fetchData,
   };
 }

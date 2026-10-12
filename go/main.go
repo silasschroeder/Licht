@@ -4,19 +4,17 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/silasschroeder/licht/go/config"
 	"github.com/silasschroeder/licht/go/handlers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
-// Use FilesystemStore to handle large session data (like certificates)
-var (
-	store  *sessions.FilesystemStore
-	appCfg *config.Config
-)
+var appCfg *config.Config
 
 // Middleware: recover panics -> 500 JSON
 func recovery(next http.Handler) http.Handler {
@@ -41,96 +39,71 @@ func logging(next http.Handler) http.Handler {
 	})
 }
 
-// CORS middleware (allow localhost:3000)
-func cors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		allowed := appCfg.AllowedCORSOrigins
-		origin := r.Header.Get("Origin")
-		for _, o := range allowed {
-			if origin == o {
-				w.Header().Set("Access-Control-Allow-Origin", o)
-			}
-		}
-		w.Header().Set("Vary", "Origin")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization")
-		// Add PUT for editing
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func main() {
-	// Load configuration
 	var err error
 	appCfg, err = config.Load()
 	if err != nil {
 		log.Fatalf("Configuration error: %v", err)
 	}
 
-	store = sessions.NewFilesystemStore("./sessions", appCfg.SessionSecretKey)
-	// Increase MaxLength to handle large certificate data
-	store.MaxLength(8192)
-
-	// Ensure sessions directory exists
-	if err := os.MkdirAll("./sessions", 0700); err != nil {
-		log.Fatal("Failed to create sessions directory:", err)
+	// In-cluster auth: build one client for the pod lifetime from the mounted
+	// ServiceAccount token and cluster CA. Fails fast if not running in a pod.
+	restCfg, err := rest.InClusterConfig()
+	if err != nil {
+		log.Fatalf("Failed to load in-cluster config (is Licht running inside the cluster?): %v", err)
+	}
+	client, err := kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		log.Fatalf("Failed to create Kubernetes client: %v", err)
 	}
 
-	store.Options.Path = "/"
-	store.Options.HttpOnly = true
-	store.Options.MaxAge = appCfg.SessionMaxAge
-	store.Options.SameSite = http.SameSiteLaxMode
-	// Workaround: secure cookies often require HTTPS. For localhost dev, false is safer unless using https://
-	store.Options.Secure = false
-
 	r := mux.NewRouter()
-
-	// Middlewares
 	r.Use(recovery)
-	r.Use(cors)
 	r.Use(logging)
 
-	// Auth routes (public)
-	r.HandleFunc("/api/auth/login", handlers.Login(store, appCfg)).Methods("POST", "OPTIONS")
-	r.HandleFunc("/api/auth/logout", handlers.Logout(store)).Methods("POST", "OPTIONS")
-	r.HandleFunc("/api/auth/check", handlers.CheckAuth(store)).Methods("GET", "OPTIONS")
+	api := r.PathPrefix("/api").Subrouter()
 
-	// Protected resource routes
-	auth := handlers.AuthMiddleware(store)
+	api.Handle("/pods", handlers.MakeResourceHandler(client, handlers.FetchPods)).Methods("GET")
+	api.Handle("/nodes", handlers.MakeResourceHandler(client, handlers.FetchNodes)).Methods("GET")
+	api.Handle("/namespaces", handlers.MakeResourceHandler(client, handlers.FetchNamespaces)).Methods("GET")
+	api.Handle("/services", handlers.MakeResourceHandler(client, handlers.FetchServices)).Methods("GET")
+	api.Handle("/deployments", handlers.MakeResourceHandler(client, handlers.FetchDeployments)).Methods("GET")
+	api.Handle("/replicasets", handlers.MakeResourceHandler(client, handlers.FetchReplicaSets)).Methods("GET")
+	api.Handle("/statefulsets", handlers.MakeResourceHandler(client, handlers.FetchStatefulSets)).Methods("GET")
+	api.Handle("/daemonsets", handlers.MakeResourceHandler(client, handlers.FetchDaemonSets)).Methods("GET")
+	api.Handle("/jobs", handlers.MakeResourceHandler(client, handlers.FetchJobs)).Methods("GET")
+	api.Handle("/cronjobs", handlers.MakeResourceHandler(client, handlers.FetchCronJobs)).Methods("GET")
 
-	r.Handle("/api/pods", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchPods))).Methods("GET")
-	r.Handle("/api/nodes", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchNodes))).Methods("GET")
-	r.Handle("/api/namespaces", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchNamespaces))).Methods("GET")
-	r.Handle("/api/services", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchServices))).Methods("GET")
-	r.Handle("/api/deployments", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchDeployments))).Methods("GET")
-	r.Handle("/api/replicasets", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchReplicaSets))).Methods("GET")
-	r.Handle("/api/statefulsets", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchStatefulSets))).Methods("GET")
-	r.Handle("/api/daemonsets", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchDaemonSets))).Methods("GET")
-	r.Handle("/api/jobs", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchJobs))).Methods("GET")
-	r.Handle("/api/cronjobs", auth(handlers.MakeResourceHandler(store, appCfg, handlers.FetchCronJobs))).Methods("GET")
+	api.Handle("/yaml", handlers.GetYAML(client)).Methods("GET")
+	api.Handle("/yaml", handlers.ApplyYAML(client)).Methods("PUT")
 
-	// YAML inspect route
-	r.Handle("/api/yaml", auth(handlers.GetYAML(store, appCfg))).Methods("GET")
-	// YAML edit/apply route
-	r.Handle("/api/yaml", auth(handlers.ApplyYAML(store, appCfg))).Methods("PUT")
+	api.Handle("/watch/pods", handlers.WatchPods(client)).Methods("GET")
+	api.Handle("/watch/stream", handlers.WatchAll(client)).Methods("GET")
 
-	// SSE watch route
-	r.Handle("/api/watch/pods", auth(handlers.WatchPods(store, appCfg))).Methods("GET")
-	// NEW: multi-resource stream
-	r.Handle("/api/watch/stream", auth(handlers.WatchAll(store, appCfg))).Methods("GET")
-
-	// 404 fallback (ensures CORS still returned)
-	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-	})
+	// Serve the built frontend (static export) for everything that is not /api.
+	// FRONTEND_DIR defaults to ./static in the container image.
+	frontendDir := os.Getenv("FRONTEND_DIR")
+	if frontendDir == "" {
+		frontendDir = "./static"
+	}
+	r.PathPrefix("/").Handler(spaFileServer(frontendDir))
 
 	port := appCfg.APIPort
-	log.Printf("API listening on :%s", port)
+	log.Printf("Licht listening on :%s (in-cluster mode)", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }
+
+// spaFileServer serves static files from dir, falling back to index.html for
+// paths that do not map to a file (client-side routing).
+func spaFileServer(dir string) http.Handler {
+	fs := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Join(dir, filepath.Clean(r.URL.Path))
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+			return
+		}
+		fs.ServeHTTP(w, r)
+	})
+}
+

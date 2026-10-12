@@ -6,10 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/sessions"
-	"github.com/silasschroeder/licht/go/config"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // PodEvent is streamed to clients
@@ -20,19 +19,11 @@ type PodEvent struct {
 }
 
 // WatchPods streams pod changes across all namespaces
-func WatchPods(store sessions.Store, cfg *config.Config) http.HandlerFunc {
+func WatchPods(client kubernetes.Interface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		client, err := getK8sClient(r, store, cfg)
-		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {
