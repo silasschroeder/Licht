@@ -133,8 +133,7 @@ export function useKubernetesData(): UseKubernetesDataReturn {
   // SSE connection for live updates
   useEffect(() => {
 
-    const sseBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
-    const es = new EventSource(`${sseBase}/api/watch/stream`, {
+    const es = new EventSource(`${API_BASE}/api/watch/stream`, {
       withCredentials: true,
     });
 

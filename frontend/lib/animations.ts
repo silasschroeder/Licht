@@ -63,49 +63,6 @@ export const staggerContainerVariants: Variants = {
   },
 };
 
-// Item variants for staggered animations
-export const staggerItemVariants: Variants = {
-  initial: {
-    opacity: 0,
-    y: 20,
-  },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: transitions.spring,
-  },
-  exit: {
-    opacity: 0,
-    y: -10,
-    transition: transitions.fast,
-  },
-};
-
-// Fade variants
-export const fadeVariants: Variants = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1, transition: transitions.normal },
-  exit: { opacity: 0, transition: transitions.fast },
-};
-
-// Scale fade variants (for modals, overlays)
-export const scaleFadeVariants: Variants = {
-  initial: {
-    opacity: 0,
-    scale: 0.9,
-  },
-  animate: {
-    opacity: 1,
-    scale: 1,
-    transition: transitions.spring,
-  },
-  exit: {
-    opacity: 0,
-    scale: 0.95,
-    transition: transitions.fast,
-  },
-};
-
 // Slide variants (for drawers, panels)
 export const slideRightVariants: Variants = {
   initial: {
@@ -124,71 +81,11 @@ export const slideRightVariants: Variants = {
   },
 };
 
-export const slideUpVariants: Variants = {
-  initial: {
-    y: 20,
-    opacity: 0,
-  },
-  animate: {
-    y: 0,
-    opacity: 1,
-    transition: transitions.spring,
-  },
-  exit: {
-    y: 20,
-    opacity: 0,
-    transition: transitions.fast,
-  },
-};
-
 // Backdrop variants
 export const backdropVariants: Variants = {
   initial: { opacity: 0 },
   animate: { opacity: 1, transition: transitions.normal },
   exit: { opacity: 0, transition: transitions.fast },
-};
-
-// Pod/Status animations
-export const statusPulseVariants: Variants = {
-  initial: {
-    scale: 1,
-  },
-  pulse: {
-    scale: [1, 1.15, 1],
-    transition: {
-      duration: 0.6,
-      ease: "easeInOut",
-    },
-  },
-};
-
-export const statusChangeVariants: Variants = {
-  initial: {
-    scale: 1,
-  },
-  changed: {
-    scale: [1, 1.2, 1],
-    transition: {
-      duration: 0.4,
-      ease: "easeOut",
-    },
-  },
-};
-
-// Ripple effect helper
-export const rippleVariants: Variants = {
-  initial: {
-    scale: 0,
-    opacity: 0.5,
-  },
-  animate: {
-    scale: 2.5,
-    opacity: 0,
-    transition: {
-      duration: 0.5,
-      ease: "easeOut",
-    },
-  },
 };
 
 // Tooltip variants
@@ -224,64 +121,6 @@ export const viewSwitchVariants: Variants = {
   exit: {
     opacity: 0,
     transition: { duration: 0.2 },
-  },
-};
-
-// Topology node variants
-export const topologyNodeVariants: Variants = {
-  initial: {
-    opacity: 0,
-    scale: 0,
-  },
-  animate: {
-    opacity: 1,
-    scale: 1,
-    transition: transitions.springBouncy,
-  },
-  exit: {
-    opacity: 0,
-    scale: 0,
-    transition: transitions.fast,
-  },
-  hover: {
-    scale: 1.1,
-    transition: transitions.fast,
-  },
-  dragging: {
-    scale: 1.15,
-    zIndex: 100,
-  },
-  highlighted: {
-    scale: 1.1,
-    boxShadow: "0 0 20px rgba(22, 105, 232, 0.4)",
-  },
-  dimmed: {
-    opacity: 0.3,
-  },
-};
-
-// Edge/connection line variants
-export const edgeVariants: Variants = {
-  initial: {
-    pathLength: 0,
-    opacity: 0,
-  },
-  animate: {
-    pathLength: 1,
-    opacity: 1,
-    transition: { duration: 0.5, ease: "easeOut" },
-  },
-  exit: {
-    pathLength: 0,
-    opacity: 0,
-    transition: transitions.fast,
-  },
-  highlighted: {
-    opacity: 1,
-    strokeWidth: 3,
-  },
-  dimmed: {
-    opacity: 0.15,
   },
 };
 
