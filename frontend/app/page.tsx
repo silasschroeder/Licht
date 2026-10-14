@@ -7,6 +7,8 @@ import { ResourceExplorer } from "../components/ResourceExplorer";
 import { QuickFilter } from "../components/QuickFilter";
 import { ResourceDrawer } from "../components/ResourceDrawer";
 import { AppShell, RailView } from "../components/AppShell";
+import { Home } from "../components/Home";
+import { HealthView } from "../components/HealthView";
 import { useKubernetesData } from "../hooks/useKubernetesData";
 import { useTheme } from "../hooks/useTheme";
 import { Pod, ResourceType } from "@/types/kubernetes";
@@ -24,6 +26,8 @@ const RESOURCE_KINDS: ResourceType[] = [
 ];
 
 const VIEW_TITLES: Record<RailView, string> = {
+  home: "Home",
+  health: "Health",
   namespaces: "Namespaces",
   nodes: "Nodes",
   pods: "Pods",
@@ -37,7 +41,7 @@ const VIEW_TITLES: Record<RailView, string> = {
 };
 
 export default function Dashboard() {
-  const [activeView, setActiveView] = useState<RailView>("pods");
+  const [activeView, setActiveView] = useState<RailView>("home");
   const [selectedNamespace, setSelectedNamespace] = useState<string | null>(
     null
   );
@@ -84,6 +88,7 @@ export default function Dashboard() {
     lastUpdated,
     connectionState,
     counts,
+    recent,
   } = useKubernetesData();
 
   const openDrawer = useCallback(
@@ -156,9 +161,30 @@ export default function Dashboard() {
       theme={theme}
       onToggleTheme={toggleTheme}
     >
-      <div className={styles.viewHeader}>
-        <h1 className={styles.viewTitle}>{VIEW_TITLES[activeView]}</h1>
-      </div>
+      {activeView !== "home" && activeView !== "health" && (
+        <div className={styles.viewHeader}>
+          <h1 className={styles.viewTitle}>{VIEW_TITLES[activeView]}</h1>
+        </div>
+      )}
+
+      {activeView === "home" && (
+        <Home
+          resourceData={resourceData}
+          nodes={nodes || []}
+          namespaces={namespaces || []}
+          counts={counts}
+          connectionState={connectionState}
+          lastUpdated={lastUpdated}
+          recent={recent}
+          now={now}
+          onViewSelect={setActiveView}
+          onNamespaceSelect={setSelectedNamespace}
+          onPodSelect={handlePodSelect}
+          formatAge={formatAge}
+        />
+      )}
+
+      {activeView === "health" && <HealthView />}
 
       {activeView === "namespaces" && (
         <NamespaceCanvas

@@ -5,6 +5,16 @@ import { ResourceData, Pod, Node, Namespace } from "@/types/kubernetes";
 
 const API_BASE = "";
 
+const RECENT_CAP = 20;
+
+export interface ActivityEntry {
+  kind: string;
+  type: string;
+  name: string;
+  namespace: string | null;
+  ts: number;
+}
+
 interface UseKubernetesDataReturn {
   resourceData: ResourceData;
   nodes: Node[];
@@ -14,6 +24,7 @@ interface UseKubernetesDataReturn {
   lastUpdated: Date | null;
   connectionState: "connecting" | "live" | "reconnecting";
   counts: Record<string, number>;
+  recent: ActivityEntry[];
   fetchData: () => Promise<void>;
 }
 
@@ -35,6 +46,7 @@ export function useKubernetesData(): UseKubernetesDataReturn {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [connectionState, setConnectionState] =
     useState<"connecting" | "live" | "reconnecting">("connecting");
+  const [recent, setRecent] = useState<ActivityEntry[]>([]);
 
   const ssePodsActiveRef = useRef(false);
 
@@ -156,6 +168,21 @@ export function useKubernetesData(): UseKubernetesDataReturn {
       const o = msg.object || {};
       const createdAt =
         o?.metadata?.creationTimestamp || o?.metadata?.creation_time || null;
+
+      // Capture change events (not the initial SYNC burst) for the activity feed.
+      if (t === "ADDED" || t === "MODIFIED" || t === "DELETED") {
+        setRecent((prev) => {
+          const entry: ActivityEntry = {
+            kind,
+            type: t,
+            name: o?.metadata?.name || "",
+            namespace: o?.metadata?.namespace ?? null,
+            ts: Date.now(),
+          };
+          const next = [entry, ...prev];
+          return next.length > RECENT_CAP ? next.slice(0, RECENT_CAP) : next;
+        });
+      }
 
       if (kind === "Pod") {
         ssePodsActiveRef.current = true;
@@ -430,6 +457,7 @@ export function useKubernetesData(): UseKubernetesDataReturn {
     lastUpdated,
     connectionState,
     counts,
+    recent,
     fetchData,
   };
 }

@@ -194,3 +194,48 @@
     display: none;
   }
 }
+
+/* --- Grouped nav: folder headers + child indent --- */
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  margin-top: var(--space-2);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  text-align: left;
+}
+
+.groupHeader:hover {
+  color: var(--text-secondary);
+}
+
+.chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  text-align: center;
+  font-size: var(--text-xs);
+}
+
+.groupLabel {
+  flex: 1 1 auto;
+}
+
+/* Children sit under a group header; indent the mark column slightly */
+.child .mark {
+  flex: 0 0 54px;
+}
+
+.child .label {
+  padding-left: var(--space-1);
+}
+
+/* Collapsed mode: no headers rendered (handled in TSX), items stay flat */
+.collapsed .groupHeader {
+  display: none;
+}
