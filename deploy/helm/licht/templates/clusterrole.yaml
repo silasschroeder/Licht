@@ -16,6 +16,10 @@ rules:
   - apiGroups: [""]
     resources: [pods, nodes, namespaces, services, configmaps, secrets]
     verbs: {{ .Values.rbac.verbs | toJson }}
+  # Pod logs are a subresource with their own RBAC; always read-only.
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
   - apiGroups: ["apps"]
     resources: [deployments, replicasets, statefulsets, daemonsets]
     verbs: {{ .Values.rbac.verbs | toJson }}

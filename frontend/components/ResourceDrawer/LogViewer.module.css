@@ -1,0 +1,92 @@
+.logsPane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--term-bg);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.select {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--term-text);
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+}
+
+.toggle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--term-muted);
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--term-text);
+}
+
+.toggleOn {
+  color: var(--color-primary-400);
+  border-color: var(--color-primary-400);
+}
+
+.output {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--term-text);
+  white-space: pre;
+}
+
+.output.wrap {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.line {
+  min-height: 1.4em;
+}
+
+.placeholder,
+.error {
+  color: var(--term-muted);
+}
+
+.error {
+  color: var(--status-failed);
+}
+
+.jump {
+  position: absolute;
+  bottom: var(--space-3);
+  right: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-inverse);
+  background: var(--color-primary-500);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  box-shadow: var(--shadow-glow);
+}

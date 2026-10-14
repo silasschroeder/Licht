@@ -80,6 +80,9 @@ func main() {
 	api.Handle("/watch/pods", handlers.WatchPods(client)).Methods("GET")
 	api.Handle("/watch/stream", handlers.WatchAll(client)).Methods("GET")
 
+	api.Handle("/pods/logs", handlers.StreamPodLogs(client)).Methods("GET")
+	api.Handle("/pods/containers", handlers.ListPodContainers(client)).Methods("GET")
+
 	// Serve the built frontend (static export) for everything that is not /api.
 	// FRONTEND_DIR defaults to ./static in the container image.
 	frontendDir := os.Getenv("FRONTEND_DIR")

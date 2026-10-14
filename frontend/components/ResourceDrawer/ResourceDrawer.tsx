@@ -14,6 +14,7 @@ import {
 } from "@/types/kubernetes";
 import { slideRightVariants, backdropVariants, transitions } from "@/lib/animations";
 import styles from "./ResourceDrawer.module.css";
+import { LogViewer } from "./LogViewer";
 
 type DrawerTab = "overview" | "yaml" | "logs";
 
@@ -489,18 +490,7 @@ export function ResourceDrawer({
               )}
 
               {activeTab === "logs" && (
-                <div className={styles.logsPane}>
-                  <div className={styles.logsToolbar}>
-                    <span className={styles.logsHint}>
-                      Log streaming is not wired up yet.
-                    </span>
-                  </div>
-                  <div className={styles.logsOutput}>
-                    <span className={styles.logsPlaceholder}>
-                      {name} logs will stream here.
-                    </span>
-                  </div>
-                </div>
+                <LogViewer namespace={namespace} name={name} />
               )}
             </div>
           </motion.div>
